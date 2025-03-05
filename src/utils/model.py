@@ -13,14 +13,14 @@ from tabulate import tabulate
 import joblib
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '..', '..')))
+sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..", "..")))
 
 from src.utils.helpers import save_or_create
 
 
-def standardize_values(y: np.ndarray,
-                       stations: np.ndarray,
-                       station_stats: pd.DataFrame) -> np.ndarray:
+def standardize_values(
+    y: np.ndarray, stations: np.ndarray, station_stats: pd.DataFrame
+) -> np.ndarray:
     """
     Standardize values based on station-level statistics.
 
@@ -35,9 +35,9 @@ def standardize_values(y: np.ndarray,
     out = np.empty_like(y, dtype=float)
     for s in np.unique(stations):
         idx = stations == s
-        min = station_stats.loc[s, 'min']
-        max = station_stats.loc[s, 'max']
-        out[idx] = (y[idx] - min) * 100.0 / (max - min) 
+        min = station_stats.loc[s, "min"]
+        max = station_stats.loc[s, "max"]
+        out[idx] = (y[idx] - min) * 100.0 / (max - min)
     return out
 
 
@@ -46,15 +46,15 @@ def split_dataset(
     p: float = 0.75,
     time: str = None,
     seed: int = 42,
-    test_stations: np.ndarray = None
+    test_stations: np.ndarray = None,
 ):
     """
-    Splits the dataset into training and testing sets 
+    Splits the dataset into training and testing sets
     based on the specified method.
 
     Parameters:
         ds (pd.DataFrame): The dataset containing data.
-        percentage_split (float): The proportion of stations
+        p (float): The proportion of stations
         for the training set.
         time (str, optional): The timestamp for temporal split.
         seed (int): Random seed for reproducibility (default is 42).
@@ -62,25 +62,23 @@ def split_dataset(
         (for the Spatio-Temporal split).
 
     Returns:
-        tuple: X_train, y_train, X_test, y_test, train_stations, test_stations
+        tuple: train, test_spatio_temporal, test_temporal
     """
-    station_code = ds['station_code'].unique()
+    station_code = ds["station_code"].unique()
     random.seed(seed)
     random.shuffle(station_code)
 
     if test_stations is not None:
         train_stations = [s for s in station_code if s not in test_stations]
     else:
-        test_stations = station_code[int(len(station_code) * p):]
-        train_stations = station_code[:int(len(station_code) * p)]
+        test_stations = station_code[int(len(station_code) * p) :]
+        train_stations = station_code[: int(len(station_code) * p)]
 
     test_temporal = ds[pd.to_datetime(ds.index) >= pd.to_datetime(time)]
-    test_temporal = test_temporal[
-        test_temporal['station_code'].isin(train_stations)
-    ]
+    test_temporal = test_temporal[test_temporal["station_code"].isin(train_stations)]
 
-    train = ds[ds['station_code'].isin(train_stations)]
-    test_spatio_temporal = ds[ds['station_code'].isin(test_stations)]
+    train = ds[ds["station_code"].isin(train_stations)]
+    test_spatio_temporal = ds[ds["station_code"].isin(test_stations)]
     train = train[pd.to_datetime(train.index) < pd.to_datetime(time)]
     test_spatio_temporal = test_spatio_temporal[
         pd.to_datetime(test_spatio_temporal.index) >= pd.to_datetime(time)
@@ -88,10 +86,7 @@ def split_dataset(
     return train, test_spatio_temporal, test_temporal
 
 
-def get_station_stats(
-    y: np.ndarray, 
-    station_code: np.ndarray
-) -> pd.DataFrame:
+def get_station_stats(y: np.ndarray, station_code: np.ndarray) -> pd.DataFrame:
     """
     Compute station-level statistics for the given data.
 
@@ -103,38 +98,31 @@ def get_station_stats(
         pd.DataFrame: A DataFrame where each row corresponds
             to a unique station code and includes statistics.
     """
-    df = pd.DataFrame({'y': y, 'station_code': station_code})
-    station_stats = df.groupby('station_code')['y'].agg(
-        ['mean', 'std', 'min', 'max'])
+    df = pd.DataFrame({"y": y, "station_code": station_code})
+    station_stats = df.groupby("station_code")["y"].agg(["mean", "std", "min", "max"])
     return station_stats
 
 
 def standardize_prediction_intervals(
-    y_pred_intervals: np.ndarray, 
-    stations: np.ndarray, 
-    station_stats: pd.DataFrame
+    y_pred_intervals: np.ndarray, stations: np.ndarray, station_stats: pd.DataFrame
 ) -> Tuple[np.ndarray, np.ndarray]:
     if y_pred_intervals is None:
         return None, None
 
     if len(y_pred_intervals.shape) == 3:
         y_pred_lower_std = standardize_values(
-            y_pred_intervals[:, 0, 0],
-            stations,
-            station_stats)
+            y_pred_intervals[:, 0, 0], stations, station_stats
+        )
         y_pred_upper_std = standardize_values(
-            y_pred_intervals[:, 1, 0],
-            stations,
-            station_stats)
+            y_pred_intervals[:, 1, 0], stations, station_stats
+        )
     else:
         y_pred_lower_std = standardize_values(
-            y_pred_intervals[:, 0],
-            stations,
-            station_stats)
+            y_pred_intervals[:, 0], stations, station_stats
+        )
         y_pred_upper_std = standardize_values(
-            y_pred_intervals[:, 1],
-            stations,
-            station_stats)
+            y_pred_intervals[:, 1], stations, station_stats
+        )
 
     return y_pred_lower_std, y_pred_upper_std
 
@@ -145,10 +133,10 @@ def compute_per_station_metrics(
     stations: np.ndarray,
     y_pred_intervals: np.ndarray = None,
     y_pred_lower_std: np.ndarray = None,
-    y_pred_upper_std: np.ndarray = None
+    y_pred_upper_std: np.ndarray = None,
 ) -> pd.DataFrame:
     """
-    Compute scaled RMSE, scaled MAE, coverage, and scaled interval size 
+    Compute scaled RMSE, scaled MAE, coverage, and scaled interval size
     for each station. Returns a DataFrame of station-level metrics.
     """
     station_list = np.unique(stations)
@@ -156,13 +144,13 @@ def compute_per_station_metrics(
     records = []
 
     has_intervals = (
-        (y_pred_intervals is not None) and 
-        (y_pred_lower_std is not None) and 
-        (y_pred_upper_std is not None)
+        (y_pred_intervals is not None)
+        and (y_pred_lower_std is not None)
+        and (y_pred_upper_std is not None)
     )
 
     for s in station_list:
-        idx = (stations == s)
+        idx = stations == s
         y_true_s = y_true_std[idx]
         y_pred_s = y_pred_std[idx]
 
@@ -178,7 +166,7 @@ def compute_per_station_metrics(
 
             # Compute Gaussian negative log-likelihood
             nll_s = (1 / len(y_true_s)) * np.sum(
-               np.log(sigma_s) + abs((y_true_s - y_pred_s)) / abs(2 * sigma_s)
+                np.log(sigma_s) + abs((y_true_s - y_pred_s)) / abs(2 * sigma_s)
             )
 
             coverage_s = np.mean((y_true_s >= y_lower_s) & (y_true_s <= y_upper_s))
@@ -195,41 +183,39 @@ def compute_per_station_metrics(
             interval_size_s = np.nan
 
         # Collect station-level metrics
-        records.append({
-            'station_code': s,
-            'scaled_rmse': rmse_s,
-            'scaled_mae': mae_s,
-            'coverage': coverage_s,
-            'scaled_interval_size': interval_size_s,
-            'log_likelihood': nll_s
-        })
+        records.append(
+            {
+                "station_code": s,
+                "scaled_rmse": rmse_s,
+                "scaled_mae": mae_s,
+                "coverage": coverage_s,
+                "scaled_interval_size": interval_size_s,
+                "log_likelihood": nll_s,
+            }
+        )
 
     return pd.DataFrame(records)
 
 
 def summarize_metrics(
-    metrics: pd.DataFrame, 
-    model_name: str, 
-    dataset_type: str, 
-    alpha: float, 
-    beta: float
+    metrics: pd.DataFrame, model_name: str, dataset_type: str, alpha: float, beta: float
 ) -> pd.DataFrame:
     """
     Given a station-level metrics DataFrame, compute average (per station)
     values and a final score.
-    Returns a single-row DataFrame containing 
+    Returns a single-row DataFrame containing
     the summary metrics for the model.
     """
-    rmse_final = np.nanmean(metrics['scaled_rmse'])
-    mae_final = np.nanmean(metrics['scaled_mae'])
-    log_likelihood = np.nanmean(metrics['log_likelihood'])
-    
-    if metrics['coverage'].count() == 0:
+    rmse_final = np.nanmean(metrics["scaled_rmse"])
+    mae_final = np.nanmean(metrics["scaled_mae"])
+    log_likelihood = np.nanmean(metrics["log_likelihood"])
+
+    if metrics["coverage"].count() == 0:
         coverage_final = np.nan
         interval_size_final = np.nan
     else:
-        coverage_final = np.nanmean(metrics['coverage'])
-        interval_size_final = np.nanmean(metrics['scaled_interval_size'])
+        coverage_final = np.nanmean(metrics["coverage"])
+        interval_size_final = np.nanmean(metrics["scaled_interval_size"])
     score = alpha * rmse_final + beta * interval_size_final
 
     data = {
@@ -240,14 +226,12 @@ def summarize_metrics(
         "scaled_mae": [mae_final],
         "coverage": [coverage_final],
         "scaled_interval_size": [interval_size_final],
-        "final_score": [score]
+        "final_score": [score],
     }
     return pd.DataFrame(data)
 
 
-def print_summary_table(
-    summary_df: pd.DataFrame
-):
+def print_summary_table(summary_df: pd.DataFrame):
     """
     Print a summary of the model-level metrics using tabulate.
     """
@@ -261,18 +245,20 @@ def print_summary_table(
         ["Average Scaled Interval Size", row["scaled_interval_size"]],
         ["Final Score", row["final_score"]],
     ]
-    print("\n" + tabulate(table_data,
-                          headers=["Metric", "Value"],
-                          tablefmt="pretty") + "\n")
+    print(
+        "\n"
+        + tabulate(table_data, headers=["Metric", "Value"], tablefmt="pretty")
+        + "\n"
+    )
 
 
 def generate_boxplots(
-    station_metrics_df: pd.DataFrame, 
-    column_to_display: str, 
+    station_metrics_df: pd.DataFrame,
+    column_to_display: str,
     prefix: str,
     title: str,
     save: bool = False,
-    display: bool = True
+    display: bool = True,
 ):
     """
     Generate and save boxplots based on the station-level metrics.
@@ -280,7 +266,7 @@ def generate_boxplots(
     Otherwise, shows coverage & interval size boxplots.
     """
     fig1, ax1 = plt.subplots(figsize=(10, 4))
-    station_metrics_df.boxplot(column=column_to_display, by='model', ax=ax1)
+    station_metrics_df.boxplot(column=column_to_display, by="model", ax=ax1)
     ax1.set_title("Per-Station Scaled Gaussian Log-Likelihood")
     ax1.set_xlabel("Model")
     ax1.set_ylabel("Scaled GLL")
@@ -291,8 +277,8 @@ def generate_boxplots(
         plt.show()
 
     if save:
-        current_date = pd.Timestamp.now().strftime('%d-%m-%Y_%H-%M')
-        path = f'../../figures/models/{prefix}_{current_date}_boxplots.png'
+        current_date = pd.Timestamp.now().strftime("%d-%m-%Y_%H-%M")
+        path = f"../../figures/models/{prefix}_{current_date}_boxplots.png"
         save_or_create(plt, path)
 
 
@@ -304,7 +290,7 @@ def compare_models_per_station(
     column_to_display: str = True,
     title: str = "Model Evaluation",
     save: bool = False,
-    display: bool = True
+    display: bool = True,
 ):
     """
     Evaluate the performance of one or multiple models at the station level.
@@ -356,7 +342,7 @@ def compare_models_per_station(
             stations=station_code,
             y_pred_intervals=y_pred_intervals,
             y_pred_lower_std=y_pred_lower_std,
-            y_pred_upper_std=y_pred_upper_std
+            y_pred_upper_std=y_pred_upper_std,
         )
 
         station_metrics_df["model"] = model_name
@@ -364,26 +350,23 @@ def compare_models_per_station(
 
     station_metrics_df = pd.concat(all_station_metrics, ignore_index=True)
 
-    generate_boxplots(station_metrics_df,
-                      column_to_display,
-                      prefix,
-                      title,
-                      save,
-                      display)
+    generate_boxplots(
+        station_metrics_df, column_to_display, prefix, title, save, display
+    )
 
 
 def load_models_auto(
-    model_name: str,
-    dir: str = "../../models/"
+    model_name: str, dir: str = "../../models/", nb_weeks: int = 4
 ) -> List[any]:
     """
     Auto-load the latest models
     for week0, week1, and week2 from the specified directory.
 
     Parameters:
-    - model_name (str): The base model name to search for 
+    - model_name (str): The base model name to search for
     (e.g., "mapie_quantile").
     - model_dir (str): Directory where models are stored.
+    - model_dir (int): Specify how many weeks you've trained for.
 
     Returns:
     - List of loaded models in the order [week0, week1, week2].
@@ -398,7 +381,7 @@ def load_models_auto(
         if match:
             date_str, week_str = match.groups()
             week_num = int(week_str)
-            date_obj = datetime.strptime(date_str, "%Y-%m-%d_%H-%M-%S")            
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d_%H-%M-%S")
             if week_num not in latest_paths:
                 latest_paths[week_num] = (date_obj, fname)
             else:
@@ -407,7 +390,7 @@ def load_models_auto(
                     latest_paths[week_num] = (date_obj, fname)
 
     loaded_mapie = []
-    for i in [0, 1, 2, 3]:
+    for i in range(nb_weeks):
         if i not in latest_paths:
             raise ValueError(f"No mapie_quantile model found for week{i} in {dir}.")
         model_file = latest_paths[i][1]
@@ -417,7 +400,7 @@ def load_models_auto(
     return loaded_mapie
 
 
-def custom_log_likelihood(estimator, X, y_true, cv_data, station_stats, alpha=.1):
+def custom_log_likelihood(estimator, X, y_true, cv_data, station_stats, alpha=0.1):
     """
     Custom log-likelihood scoring function.
 
@@ -446,18 +429,11 @@ def custom_log_likelihood(estimator, X, y_true, cv_data, station_stats, alpha=.1
     current_stations = cv_data.loc[X.index, "station_code"].to_numpy()
 
     # Standardize the values.
-    y_true_std = standardize_values(
-        y_true.to_numpy(),
-        current_stations,
-        station_stats)
-    y_pred_std = standardize_values(
-        y_pred,
-        current_stations,
-        station_stats)
+    y_true_std = standardize_values(y_true.to_numpy(), current_stations, station_stats)
+    y_pred_std = standardize_values(y_pred, current_stations, station_stats)
     y_lower_std, y_upper_std = standardize_prediction_intervals(
-        y_quantiles,
-        current_stations,
-        station_stats)
+        y_quantiles, current_stations, station_stats
+    )
 
     # Compute sigma from the prediction interval.
     sigma_std = (y_upper_std - y_lower_std) / 3.29

@@ -1,4 +1,6 @@
 #dataset exclusion
+data
+models
 dataset/france
 dataset/brazil
 
