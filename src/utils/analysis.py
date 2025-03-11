@@ -2,11 +2,7 @@ from typing import Callable, List, Any
 import numpy as np
 
 
-def create_predict_function(
-        model_list: List[Any],
-        i: int,
-        model: str
-        ) -> Callable:
+def create_predict_function(model_list: List[Any], i: int, model: str) -> Callable:
     """
     Creates a prediction function based on the specified model type.
 
@@ -18,9 +14,12 @@ def create_predict_function(
     Returns:
         Callable: A function that takes input data X and returns predictions.
     """
+
     def predict(X):
         if model == "mapie":
             return model_list[i].predict(X)[0]
+        elif model == "lgbm":
+            return model_list[i][1].predict(X)
         elif model == "deep_ensemble":
             y_pred_deep = []
             for m in model_list[i]:
@@ -29,15 +28,13 @@ def create_predict_function(
             return np.mean(y_pred_deep, axis=0)
         else:
             return model_list[i].predict(X)
+
     return predict
 
 
 def create_quantile_function(
-        models: List[Any],
-        i: int,
-        model: str,
-        alpha: float = .1
-        ) -> Callable:
+    models: List[Any], i: int, model: str, alpha: float = 0.1
+) -> Callable:
     """
     Creates a quantile prediction function based on the specified model type.
 
@@ -51,9 +48,12 @@ def create_quantile_function(
         Callable: A function that takes input data X
         and returns quantile predictions.
     """
+
     def predict_quantile(X):
         if model == "mapie":
             return models[i].predict(X)[1]
+        if model == "lgbm":
+            return np.stack([models[i][0].predict(X), models[i][2].predict(X)], axis=1)
         elif model == "qrf":
             return models[i].predict(X, quantiles=[alpha / 2, 1 - alpha / 2])
         elif model == "deep_ensemble":
@@ -61,9 +61,8 @@ def create_quantile_function(
             for m in models[i]:
                 y_pred_deep.append(m.predict(X, verbose=0))
             y_pred_deep = np.array(y_pred_deep)
-            y_pred_deep = np.quantile(y_pred_deep,
-                                      [alpha / 2, 1 - alpha / 2],
-                                      axis=0)
+            y_pred_deep = np.quantile(y_pred_deep, [alpha / 2, 1 - alpha / 2], axis=0)
             return y_pred_deep.T[0, :, :]
         raise ValueError(f"Unsupported model type: {model}")
+
     return predict_quantile
