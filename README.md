@@ -1,3 +1,18 @@
+# WaterScarcity.Hackathon
+Group participation for the 2025 hackathon organized by Capgemini. 
+
+---
+## Motivations 
+- Improve overall knowledge on data science and AI
+- Experiment with concrete data
+- Get out of confort zone and manipulate unusual data
+
+---
+## Contributors 👥
+
+- **[lucas066001]**
+- **[Az-r-ow]**
+
 # Hackathon on Water Scarcity 2025 - Baseline Model Repository
 
 This repository provides a simple toolkit to train baseline models and generate submission files for the [Hackathon on Water Scarcity 2025](https://www.codabench.org/competitions/4335). The baseline models predict water discharge for the 52 stations of eval dataset. You are free to experiment with different modeling approaches or use distinct models per station, as long as your submission file adheres to the required format (see Codabench guidelines).
