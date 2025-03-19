@@ -491,3 +491,104 @@ def create_deep_model(input_shape: Tuple[int]):
     )
     model.compile(optimizer=Adam(learning_rate=0.001), loss="mse")
     return model
+
+
+import numpy as np
+from xgboost import DMatrix, train
+from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
+
+
+class XGBQuantileRegressor(BaseEstimator, RegressorMixin):
+    """
+    Custom XGBoost model trained on log(y) to ensure positive predictions.
+    """
+
+    def __init__(
+        self,
+        quantile=0.5,
+        n_estimators=500,
+        learning_rate=0.1,
+        max_depth=3,
+        objective="reg:squaredlogerror",
+        gamma=0,
+        min_child_weight=1,
+        subsample=1,
+        colsample_bytree=1,
+    ):
+        self.quantile = quantile
+        self.n_estimators = n_estimators
+        self.learning_rate = learning_rate
+        self.max_depth = max_depth
+        self.objective = objective
+        self.gamma = gamma
+        self.min_child_weight = min_child_weight
+        self.subsample = subsample
+        self.colsample_bytree = colsample_bytree
+        self.model_ = None
+
+    def _quantile_gradient(self, y_true, y_pred):
+        """Gradient of quantile loss."""
+        residual = y_true - y_pred
+        return np.where(residual > 0, -self.quantile, -(self.quantile - 1))
+
+    def _quantile_hessian(self, y_true):
+        """Hessian (second derivative) is constant for quantile loss."""
+        return np.ones_like(y_true)
+
+    def fit(self, X, y, eval_set=None):
+        """Train model on log-transformed target."""
+        feature_names = X.columns.tolist()
+
+        X, y = check_X_y(X, y)
+
+        if np.any(y <= 0):
+            raise ValueError(
+                "All target values must be positive for log transformation."
+            )
+
+        y_log = np.log(y)  # Apply log transformation
+
+        dtrain = DMatrix(X, label=y_log, feature_names=feature_names)
+
+        params = {
+            "objective": self.objective,
+            "eta": self.learning_rate,
+            "max_depth": self.max_depth,
+            "gamma": self.gamma,
+            "min_child_weight": self.min_child_weight,
+            "subsample": self.subsample,
+            "colsample_bytree": self.colsample_bytree,
+        }
+
+        if eval_set is not None:
+            eval_set = [
+                (DMatrix(X_eval, label=np.log(y_eval)), "validation")
+                for X_eval, y_eval in eval_set
+            ]
+
+        self.model_ = train(
+            params,
+            dtrain,
+            evals=eval_set,
+            num_boost_round=self.n_estimators,
+            obj=self._custom_loss,
+            verbose_eval=False,
+        )
+        return self
+
+    def _custom_loss(self, y_pred, dtrain):
+        """Custom loss function."""
+        y_true = dtrain.get_label()
+        grad = self._quantile_gradient(y_true, y_pred)
+        hess = self._quantile_hessian(y_true)
+        return grad, hess
+
+    def predict(self, X):
+        """Predict and exponentiate to ensure positive values."""
+        check_is_fitted(self, "model_")
+        X = check_array(X)
+
+        dtest = DMatrix(X)
+        y_pred_log = self.model_.predict(dtest, validate_features=False)
+        return np.exp(y_pred_log)  # Convert back to original scale
