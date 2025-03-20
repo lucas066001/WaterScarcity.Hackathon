@@ -1,5 +1,7 @@
 import pandas as pd
+import numpy as np
 from quantile_forest import RandomForestQuantileRegressor
+from sklearn.base import BaseEstimator, TransformerMixin
 
 
 class VotingRandomForestQuantileRegressor:
@@ -116,3 +118,62 @@ class VotingRandomForestQuantileRegressor:
 
         total_predictions[numerical_cols] /= len(self.variants)
         return total_predictions
+
+
+class SnowIndexComputeTransformer(BaseEstimator, TransformerMixin):
+    def __init__(
+        self,
+        altitude_weight=0.6,
+        temp_weight=0.3,
+        precip_weight=0.7,
+        temp_col_name="temperatures",
+        rain_col_name="precipitations",
+    ):
+        self.altitude_weight = altitude_weight
+        self.temp_weight = temp_weight
+        self.precip_weight = precip_weight
+        self.temp_col_name = temp_col_name
+        self.rain_col_name = rain_col_name
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        X_transformed = X.copy()
+
+        required_columns = ["altitude", self.temp_col_name, self.rain_col_name]
+        if not all(col in X_transformed.columns for col in required_columns):
+            raise ValueError(
+                f"DataFrame must contain the following columns: {required_columns}"
+            )
+
+        # Make all temps positive to get relevant increasing output
+        min_temp = X_transformed[self.temp_col_name].min()
+        if min_temp <= 0:
+            X_transformed[self.temp_col_name] += abs(min_temp) + 1
+
+        # Compute index
+        snow_index = (
+            (
+                X_transformed["altitude"] * self.altitude_weight
+            )  # More height = more snow
+            * (
+                X_transformed[self.rain_col_name] * self.precip_weight
+            )  # More rain = more snow
+            / (
+                X_transformed[self.temp_col_name] * self.temp_weight
+            )  # Lower temps = more snow
+        )
+
+        # handle infinites et NaN
+        snow_index.replace([np.inf, -np.inf], np.nan, inplace=True)
+        snow_index.fillna(0, inplace=True)
+
+        # Normalize
+        snow_index = (snow_index - snow_index.min()) / (
+            snow_index.max() - snow_index.min()
+        )
+
+        X_transformed["snow_index"] = snow_index
+
+        return X_transformed

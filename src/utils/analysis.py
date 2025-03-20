@@ -22,6 +22,8 @@ def create_predict_function(model_list: List[Any], i: int, model: str) -> Callab
             return model_list[i][1].predict(X)
         elif model == "qrf_bagging":
             return model_list[i][1].predict(X, quantiles="mean")
+        elif model == "gbr":
+            return model_list[i]["median"].predict(X)
         elif model == "deep_ensemble":
             y_pred_deep = []
             for m in model_list[i]:
@@ -58,6 +60,10 @@ def create_quantile_function(
             return np.stack([models[i][0].predict(X), models[i][2].predict(X)], axis=1)
         elif model == "qrf":
             return models[i].predict(X, quantiles=[alpha / 2, 1 - alpha / 2])
+        elif model == "gbr":
+            return np.stack(
+                [models[i]["lower"].predict(X), models[i]["upper"].predict(X)]
+            )
         elif model == "qrf_bagging":
             return np.stack(
                 [
