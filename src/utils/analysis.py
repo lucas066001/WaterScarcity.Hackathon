@@ -20,6 +20,8 @@ def create_predict_function(model_list: List[Any], i: int, model: str) -> Callab
             return model_list[i].predict(X)[0]
         elif model == "lgbm":
             return model_list[i][1].predict(X)
+        elif model == "xgb":
+            return model_list[i][0.5].predict(X)
         elif model == "qrf_bagging":
             return model_list[i][1].predict(X, quantiles="mean")
         elif model == "gbr":
@@ -54,10 +56,17 @@ def create_quantile_function(
     """
 
     def predict_quantile(X):
+        print(f"model : {model}")
         if model == "mapie":
             return models[i].predict(X)[1]
         if model == "lgbm":
             return np.stack([models[i][0].predict(X), models[i][2].predict(X)], axis=1)
+        if model == "xgb":
+            quantiles = [alpha / 2, 1 - alpha / 2]
+            return np.stack(
+                [models[i][q].predict(X) for q in quantiles],
+                axis=1,
+            )
         elif model == "qrf":
             return models[i].predict(X, quantiles=[alpha / 2, 1 - alpha / 2])
         elif model == "gbr":
