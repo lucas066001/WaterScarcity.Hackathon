@@ -4,6 +4,7 @@ from matplotlib.dates import MonthLocator, DateFormatter
 import itertools
 from cartopy import crs as ccrs
 from cartopy import feature as cfeature
+import seaborn as sns
 
 
 def plot_water_flows(
@@ -233,3 +234,69 @@ def plot_water_flow_predictions(
         print(f"Plot saved to {save_path}")
     elif display:
         plt.show()
+
+
+def plot_cumulative_variance(
+    cumulative_sums1,
+    cumulative_sums2,
+    title1="Cumulative sum of explained variance train set",
+    title2="Cumulative sum of explained variance eval set",
+):
+    plt.figure(figsize=(12, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(cumulative_sums1, marker="o")
+    plt.title(title1)
+    plt.xlabel("Index")
+    plt.ylabel("Variance")
+    plt.grid(True)
+
+    plt.subplot(1, 2, 2)
+    plt.plot(cumulative_sums2, marker="o", color="orange")
+    plt.title(title2)
+    plt.xlabel("Index")
+    plt.ylabel("Variance")
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plotValuesAlong1PCa(pc_1, y, title="2 Pcs value correlation"):
+    plt.figure(figsize=(10, 6))
+
+    plt.scatter(pc_1, c=y, cmap=plt.cm.coolwarm, alpha=0.5)
+
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    plt.title(title)
+    plt.show()
+
+
+def plotValuesAlong2PCa(pc_1, pc_2, y, title="2 Pcs value correlation"):
+    print(y.shape)
+    cmap = sns.cubehelix_palette(as_cmap=True)
+
+    f, ax = plt.subplots()
+
+    points = ax.scatter(pc_1, pc_2, c=y, s=10, cmap=cmap)
+    f.colorbar(points)
+    # plt.figure(figsize=(10, 6))
+
+    # # plt.scatter(pc_1, pc_2, c=y, cmap=plt.cm.coolwarm, alpha=0.5)
+
+    # plt.xlabel('PC1')
+    # plt.ylabel('PC2')
+    # plt.title(title)
+    # plt.show()
+
+
+def plotValuesAlong3PCa(pc_1, pc_2, pc_3, y, title="3 Pcs value correlation"):
+    fig = plt.figure(figsize=(10, 6))
+    ax = fig.add_subplot(111, projection="3d")
+    ax.scatter(pc_1, pc_2, pc_3, c=y, cmap=plt.cm.coolwarm, alpha=0.3)
+
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    plt.title(title)
+    plt.show()

@@ -123,9 +123,9 @@ class VotingRandomForestQuantileRegressor:
 class SnowIndexComputeTransformer(BaseEstimator, TransformerMixin):
     def __init__(
         self,
-        altitude_weight=0.6,
-        temp_weight=0.3,
-        precip_weight=0.7,
+        altitude_weight=1,
+        temp_weight=1.2,
+        precip_weight=0.2,
         temp_col_name="temperatures",
         rain_col_name="precipitations",
     ):
