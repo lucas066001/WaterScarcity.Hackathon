@@ -16,6 +16,7 @@ from .helpers import save_or_create
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.optimizers import Adam
+from quantile_forest import RandomForestQuantileRegressor
 
 
 def standardize_values(
@@ -592,3 +593,35 @@ class XGBQuantileRegressor(BaseEstimator, RegressorMixin):
         dtest = DMatrix(X)
         y_pred_log = self.model_.predict(dtest, validate_features=False)
         return np.exp(y_pred_log)  # Convert back to original scale
+
+
+class XGBQRFModel:
+    def __init__(self, xgb_params: dict, qrf_params: dict, quantiles: list = []):
+        self.xgb_params = xgb_params
+        self.qrf_params = qrf_params
+        self.quantiles = quantiles
+        self.models = {
+            "XGB": {
+                q: XGBQuantileRegressor(quantile=q, **self.xgb_params)
+                for q in self.quantiles
+            },
+            "QRF": RandomForestQuantileRegressor(**self.qrf_params),
+        }
+
+    def fit(self, X, y, eval_set: list = []):
+        print("Fitting XGB models")
+        for q in self.quantiles:
+            self.models["XGB"][q].fit(X, y, eval_set=eval_set)
+        print("Fitting QRF model")
+        self.models["QRF"].fit(X, y)
+
+    def predict(self, X):
+        xgb_predictions = np.stack(
+            [model.predict(X) for model in self.models["XGB"].values()], axis=1
+        )
+
+        qrf_predictions = self.models["QRF"].predict(X, quantiles=self.quantiles)
+        return np.stack(
+            [qrf_predictions[:, 0], xgb_predictions[:, 1], xgb_predictions[:, 2]],
+            axis=1,
+        )
