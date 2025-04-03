@@ -102,7 +102,7 @@ def load_meteo_data(area, meteo_type, dir):
     }
 
 
-def load_station_info(area, meteo_type, dir):
+def load_station_info(area, meteo_type, dir, sep=","):
     """
     Load station info for a given area and type.
 
@@ -116,7 +116,7 @@ def load_station_info(area, meteo_type, dir):
         and updated altitude.
     """
     path = f"{dir}{area}/{meteo_type}/waterflow/station_info.csv"
-    df = pd.read_csv(path, sep=",")
+    df = pd.read_csv(path, sep=sep)
     df = df.rename(
         columns={
             "Latitude": "latitude",
