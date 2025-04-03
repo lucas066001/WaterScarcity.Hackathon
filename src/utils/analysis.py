@@ -29,7 +29,7 @@ def create_predict_function(model_list: List[Any], i: int, model: str) -> Callab
         elif model == "deep_ensemble":
             y_pred_deep = []
             for m in model_list[i]:
-                y_pred_deep.append(m.predict(X, verbose=0))
+                y_pred_deep.append(m.predict(X))
             y_pred_deep = np.array(y_pred_deep)
             return np.mean(y_pred_deep, axis=0)
         elif model == "xgb_qrf":
@@ -91,10 +91,9 @@ def create_quantile_function(
         elif model == "deep_ensemble":
             y_pred_deep = []
             for m in models[i]:
-                y_pred_deep.append(m.predict(X, verbose=0))
+                y_pred_deep.append(m.predict(X))
             y_pred_deep = np.array(y_pred_deep)
-            y_pred_deep = np.quantile(y_pred_deep, [alpha / 2, 1 - alpha / 2], axis=0)
-            return y_pred_deep.T[0, :, :]
+            return np.quantile(y_pred_deep, [alpha / 2, 1 - alpha / 2], axis=0)
         raise ValueError(f"Unsupported model type: {model}")
 
     return predict_quantile
