@@ -3,7 +3,7 @@ data/
 
 # Ignore the dataset folder and all its subdirectories and files
 dataset/
-
+dataset_mini_challenge/
 models/
 .DS_Store
 
