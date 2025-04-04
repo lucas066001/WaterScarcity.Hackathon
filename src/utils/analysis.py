@@ -32,7 +32,7 @@ def create_predict_function(model_list: List[Any], i: int, model: str) -> Callab
                 y_pred_deep.append(m.predict(X))
             y_pred_deep = np.array(y_pred_deep)
             return np.mean(y_pred_deep, axis=0)
-        elif model == "xgb_qrf":
+        elif model == "xgb_qrf" or model == "xgb_qrf_simple":
             return model_list[i].predict(X)[:, 1]
         else:
             return model_list[i].predict(X)
@@ -75,7 +75,7 @@ def create_quantile_function(
             return np.stack(
                 [models[i]["lower"].predict(X), models[i]["upper"].predict(X)]
             )
-        elif model == "xgb_qrf":
+        elif model == "xgb_qrf" or model == "xgb_qrf_simple":
             predictions = models[i].predict(X)
             return np.stack([predictions[:, 0], predictions[:, 2]], axis=1)
         elif model == "qrf_bagging":
