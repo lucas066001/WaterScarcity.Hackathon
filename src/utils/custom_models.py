@@ -65,10 +65,11 @@ class VotingRandomForestQuantileRegressor:
             self.models[variant] = RandomForestQuantileRegressor(
                 n_estimators=35,
                 min_samples_split=9,
-                min_samples_leaf=11,
+                min_samples_leaf=25,
                 max_features=None,
-                max_depth=30,
+                max_depth=50,
                 bootstrap=True,
+                random_state=42,
             )
             X_adj, y_adj = self.adjust_dataset(variant, X, y)
             print(f"Training on {X_adj.shape[0]} samples")
