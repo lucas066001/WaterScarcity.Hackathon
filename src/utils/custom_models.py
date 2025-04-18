@@ -45,9 +45,6 @@ class VotingRandomForestQuantileRegressor:
             X_train["y"] = y
         if "remove_station_identication" in variant_name:
             X_train = X_train.drop(columns=["station_code"])
-            X_train = X_train.drop(columns=["catchment"])
-            X_train = X_train.drop(columns=["latitude"])
-            X_train = X_train.drop(columns=["longitude"])
 
         if "france" in variant_name and not predict:
             X_train = X_train[X_train["north_hemisphere"] == 1]
@@ -66,11 +63,11 @@ class VotingRandomForestQuantileRegressor:
         for variant in self.variants:
             print(f"Training for variant {variant}")
             self.models[variant] = RandomForestQuantileRegressor(
-                n_estimators=60,
-                min_samples_split=5,
-                min_samples_leaf=15,
+                n_estimators=35,
+                min_samples_split=9,
+                min_samples_leaf=11,
                 max_features=None,
-                max_depth=20,
+                max_depth=30,
                 bootstrap=True,
             )
             X_adj, y_adj = self.adjust_dataset(variant, X, y)

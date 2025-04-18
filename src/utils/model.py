@@ -495,7 +495,7 @@ def create_deep_model(input_shape: Tuple[int]):
 
 
 import numpy as np
-from xgboost import DMatrix, train
+from xgboost import DMatrix, XGBRegressor, train
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 
@@ -640,73 +640,177 @@ class XGBQRF_SimpleModel:
         self.qrf_params = qrf_params
         self.quantiles = quantiles
         self.models = {
-            "XGB": {},
+            "XGB": XGBRegressor(**self.xgb_params),
             "QRF": RandomForestQuantileRegressor(**self.qrf_params),
         }
 
-    def _custom_loss(self, y_pred, dtrain):
-        """Custom loss function."""
-        y_true = dtrain.get_label()
-        grad = self._quantile_gradient(y_true, y_pred)
-        hess = self._quantile_hessian(y_true)
-        return grad, hess
-
     def fit(self, X, y, eval_set: list = []):
         print("Fitting XGB models")
-
-        params = {
-            "objective": self.xgb_params.objective,
-            "eta": self.xgb_params.learning_rate,
-            "max_depth": self.xgb_params.max_depth,
-            "gamma": self.xgb_params.gamma,
-            "min_child_weight": self.xgb_params.min_child_weight,
-            "subsample": self.xgb_params.subsample,
-            "colsample_bytree": self.xgb_params.colsample_bytree,
-        }
-
-        feature_names = X.columns.tolist()
-
-        X, y = check_X_y(X, y)
-
-        if np.any(y <= 0):
-            raise ValueError(
-                "All target values must be positive for log transformation."
-            )
-
-        y_log = np.log(y)  # Apply log transformation
-
-        dtrain = DMatrix(X, label=y_log, feature_names=feature_names)
-
-        self.models["XGB"] = train(
-            params,
-            dtrain,
-            evals=eval_set,
-            num_boost_round=self.n_estimators,
-            obj=self._custom_loss,
-            verbose_eval=False,
-        )
-
-        print("Fitting QRF model")
+        self.models["XGB"].fit(X, y, eval_set=eval_set, verbose=False)
         self.models["QRF"].fit(X, y)
 
     def predict(self, X):
 
-        check_is_fitted(self, "models['XGB']")
-        X = check_array(X)
-
-        dtest = DMatrix(X)
-        y_pred_log = self.models["XGB"].predict(dtest, validate_features=False)
-        xgb_predictions = np.exp(y_pred_log)  # Convert back to original scale
+        xgb_predictions = self.models["XGB"].predict(X)
 
         qrf_predictions = self.models["QRF"].predict(X, quantiles=self.quantiles)
 
-        qrf_lower_gap = qrf_predictions[:, 1] - qrf_predictions[:, 0]  # à soustraire
-        lower_bound = xgb_predictions - qrf_lower_gap
+        qrf_median = qrf_predictions[:, 1]
 
-        qrf_upper_gap = qrf_predictions[:, 2] - qrf_predictions[:, 1]  # à ajouter
-        upper_bound = xgb_predictions + qrf_upper_gap
+        qrf_lower_gap = (
+            qrf_median - qrf_predictions[:, 0]
+        ) / qrf_median  # à soustraire
+        lower_bound = xgb_predictions * (1 - qrf_lower_gap)
+
+        qrf_upper_gap = (qrf_predictions[:, 2] - qrf_median) / qrf_median  # à ajouter
+        upper_bound = xgb_predictions * (1 + qrf_upper_gap)
 
         return np.stack(
             [lower_bound, xgb_predictions, upper_bound],
             axis=1,
         )
+
+
+class ChainedQrfModel:
+    def __init__(self, qrf_params: dict, qrf_features: dict, number_of_weeks: int = 4):
+        self.qrf_params = qrf_params
+        self.qrf_features = qrf_features
+        self.number_of_weeks = number_of_weeks
+        self.models = {}
+        for i in range(self.number_of_weeks):
+            self.models[i] = RandomForestQuantileRegressor(**self.qrf_params[i])
+
+    def fit(self, X, y):
+        print("Fitting QRF models")
+        X_incremental = {}
+        for i in range(self.number_of_weeks):
+            print(f"Fitting week {i}")
+            if i == 0:
+                X_incremental[i] = X.copy(deep=True)
+                self.models[i].fit(X_incremental[i][self.qrf_features[i]], y[i])
+            else:
+                # Use the previous week's predictions as features
+                y_pred = self.models[i - 1].predict(
+                    X_incremental[i - 1][self.qrf_features[i - 1]], quantiles=[0.5]
+                )
+                y_pred = np.reshape(y_pred, (-1, 1))
+
+                X_incremental[i] = X_incremental[i - 1].copy(deep=True)
+                print(f"week_{i}_pred")
+                X_incremental[i][f"week_{i}_pred"] = y_pred
+
+                if i == 1:
+                    X_incremental[i][f"week_{i-1}_{i}_slope"] = (
+                        X_incremental[i][f"week_{i}_pred"]
+                        - X_incremental[i]["water_flow_lag_1w"]
+                    ) / X_incremental[i]["water_flow_lag_1w"].replace(0, np.nan)
+                else:
+                    X_incremental[i][f"week_{i-1}_{i}_slope"] = (
+                        X_incremental[i][f"week_{i}_pred"]
+                        - X_incremental[i][f"week_{i-1}_pred"]
+                    ) / X_incremental[i][f"week_{i-1}_pred"].replace(0, np.nan)
+
+                self.models[i].fit(X_incremental[i][self.qrf_features[i]], y[i])
+
+    def predict(self, X, quantiles=[0.05, 0.5, 0.95]):
+        print("Predicting QRF models")
+        predictions = {}
+        X_incremental = {}
+        for i in range(self.number_of_weeks):
+            if i == 0:
+                X_incremental[i] = X.copy(deep=True)
+                predictions[i] = self.models[i].predict(
+                    X_incremental[i][self.qrf_features[i]], quantiles=quantiles
+                )
+            else:
+                # Use the previous week's predictions as features
+                y_pred = predictions[i - 1][:, 1]
+                y_pred = np.reshape(y_pred, (-1, 1))
+                X_incremental[i] = X_incremental[i - 1].copy(deep=True)
+                X_incremental[i][f"week_{i}_pred"] = y_pred
+
+                if i == 1:
+                    X_incremental[i][f"week_{i-1}_{i}_slope"] = (
+                        X_incremental[i][f"week_{i}_pred"]
+                        - X_incremental[i]["water_flow_lag_1w"]
+                    ) / X_incremental[i]["water_flow_lag_1w"].replace(0, np.nan)
+                else:
+                    X_incremental[i][f"week_{i-1}_{i}_slope"] = (
+                        X_incremental[i][f"week_{i}_pred"]
+                        - X_incremental[i][f"week_{i-1}_pred"]
+                    ) / X_incremental[i][f"week_{i-1}_pred"].replace(0, np.nan)
+
+                predictions[i] = self.models[i].predict(
+                    X_incremental[i][self.qrf_features[i]], quantiles=quantiles
+                )
+
+        return predictions
+
+
+class SpecialistQrfModel:
+    def __init__(
+        self,
+        qrf_params: dict,
+        qrf_features: dict,
+        specialized_col="region_cluster",
+        number_of_weeks: int = 4,
+        number_of_clusters: int = 3,
+    ):
+        self.qrf_params = qrf_params
+        self.qrf_features = qrf_features
+        self.number_of_weeks = number_of_weeks
+        self.specialized_col = specialized_col
+        self.number_of_clusters = number_of_clusters
+        self.models = {}
+
+        print("Init QRF models")
+        for i in range(self.number_of_weeks):
+            self.models[i] = {}
+            for clust_index in range(self.number_of_clusters):
+                self.models[i][clust_index] = RandomForestQuantileRegressor(
+                    **self.qrf_params[clust_index]
+                )
+
+    def fit(self, X, y):
+        print("Fitting QRF models")
+        for i in range(self.number_of_weeks):
+            print(f"Fitting week {i}")
+            for clust_index in range(self.number_of_clusters):
+                print(f"Fitting cluster {clust_index}")
+                X["y_true"] = y[i]
+                X_train = X[X[self.specialized_col] == clust_index].copy(deep=True)
+                y_train = X_train["y_true"]
+                X.drop(columns=["y_true"])
+                X_train.drop(columns=["y_true"])
+                self.models[i][clust_index].fit(
+                    X_train[self.qrf_features[clust_index]], y_train
+                )
+
+    def predict(self, X, quantiles=[0.05, 0.5, 0.95]):
+        print("Predicting QRF models")
+        predictions = {}
+
+        for i in range(self.number_of_weeks):
+            print(f"Predicting week {i}")
+            # Crée un DataFrame vide avec les bons index et colonnes (quantiles)
+            preds = pd.DataFrame(index=X.index, columns=quantiles, dtype=float)
+            print(preds.head())
+            for clust_index in range(self.number_of_clusters):
+                print(f"Predicting cluster {clust_index}")
+                cluster_mask = X[self.specialized_col] == clust_index
+                X_pred = X[cluster_mask].copy(deep=True)
+
+                # Prédictions QRF : shape (n_samples, len(quantiles))
+                cluster_preds = self.models[i][clust_index].predict(
+                    X_pred[self.qrf_features[clust_index]], quantiles=quantiles
+                )
+
+                # Place les prédictions aux bons indices
+                print(X_pred.index.shape)
+                print(cluster_preds.shape)
+                print(preds.shape)
+                preds.loc[cluster_mask, :] = cluster_preds
+
+            predictions[i] = preds
+
+        return predictions
