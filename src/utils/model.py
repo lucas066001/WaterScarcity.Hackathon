@@ -640,71 +640,33 @@ class XGBQRF_SimpleModel:
         self.qrf_params = qrf_params
         self.quantiles = quantiles
         self.models = {
-            "XGB": {},
+            "XGB": XGBRegressor(**self.xgb_params),
             "QRF": RandomForestQuantileRegressor(**self.qrf_params),
         }
 
-    def _custom_loss(self, y_pred, dtrain):
-        """Custom loss function."""
-        y_true = dtrain.get_label()
-        grad = self._quantile_gradient(y_true, y_pred)
-        hess = self._quantile_hessian(y_true)
-        return grad, hess
-
     def fit(self, X, y, eval_set: list = []):
         print("Fitting XGB models")
-
-        params = {
-            "objective": self.xgb_params.objective,
-            "eta": self.xgb_params.learning_rate,
-            "max_depth": self.xgb_params.max_depth,
-            "gamma": self.xgb_params.gamma,
-            "min_child_weight": self.xgb_params.min_child_weight,
-            "subsample": self.xgb_params.subsample,
-            "colsample_bytree": self.xgb_params.colsample_bytree,
-        }
-
-        feature_names = X.columns.tolist()
-
-        X, y = check_X_y(X, y)
-
-        if np.any(y <= 0):
-            raise ValueError(
-                "All target values must be positive for log transformation."
-            )
-
-        y_log = np.log(y)  # Apply log transformation
-
-        dtrain = DMatrix(X, label=y_log, feature_names=feature_names)
-
-        self.models["XGB"] = train(
-            params,
-            dtrain,
-            evals=eval_set,
-            num_boost_round=self.n_estimators,
-            obj=self._custom_loss,
-            verbose_eval=False,
-        )
-
+        self.models["XGB"].fit(X, y, eval_set=eval_set, verbose=False)
         print("Fitting QRF model")
         self.models["QRF"].fit(X, y)
 
     def predict(self, X):
 
-        check_is_fitted(self, "models['XGB']")
-        X = check_array(X)
-
-        dtest = DMatrix(X)
-        y_pred_log = self.models["XGB"].predict(dtest, validate_features=False)
-        xgb_predictions = np.exp(y_pred_log)  # Convert back to original scale
+        xgb_predictions = self.models["XGB"].predict(X)
 
         qrf_predictions = self.models["QRF"].predict(X, quantiles=self.quantiles)
 
-        qrf_lower_gap = qrf_predictions[:, 1] - qrf_predictions[:, 0]  # à soustraire
-        lower_bound = xgb_predictions - qrf_lower_gap
+        qrf_median = qrf_predictions[:, 1]
 
-        qrf_upper_gap = qrf_predictions[:, 2] - qrf_predictions[:, 1]  # à ajouter
-        upper_bound = xgb_predictions + qrf_upper_gap
+        xgb_predictions[xgb_predictions < 100] = qrf_median[xgb_predictions < 100]
+
+        qrf_lower_gap = (
+            qrf_median - qrf_predictions[:, 0]
+        ) / qrf_median  # à soustraire
+        lower_bound = xgb_predictions * (1 - qrf_lower_gap)
+
+        qrf_upper_gap = (qrf_predictions[:, 2] - qrf_median) / qrf_median  # à ajouter
+        upper_bound = xgb_predictions * (1 + qrf_upper_gap)
 
         return np.stack(
             [lower_bound, xgb_predictions, upper_bound],
