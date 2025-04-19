@@ -422,6 +422,7 @@ def load_models_auto(mn: str, dir: str = "../../models/") -> List[any]:
             raise ValueError(f"No mapie_quantile model found for week{i} in {dir}.")
         model_file = latest_paths[i][1]
         full_path = os.path.join(dir, model_file)
+        print(f"Loading model for week {i}: {model_file}")
         loaded_mapie.append(joblib.load(full_path))
 
     return loaded_mapie
@@ -622,14 +623,15 @@ class XGBQRFModel:
 
         qrf_predictions = self.models["QRF"].predict(X, quantiles=self.quantiles)
 
-        qrf_lower_gap = qrf_predictions[:, 1] - qrf_predictions[:, 0]  # à soustraire
-        lower_bound = xgb_predictions[:, 1] - qrf_lower_gap
+        lower_gap = qrf_predictions[:, 1] - qrf_predictions[:, 0]
+        lower = xgb_predictions[:, 1] - lower_gap
+        lower = lower.clip(min=0)
 
-        qrf_upper_gap = qrf_predictions[:, 2] - qrf_predictions[:, 1]  # à ajouter
-        upper_bound = xgb_predictions[:, 1] + qrf_upper_gap
-
+        upper_gap_qrf = qrf_predictions[:, 2] - qrf_predictions[:, 1]
+        upper_gap_xgb = xgb_predictions[:, 2] - xgb_predictions[:, 1]
+        upper = xgb_predictions[:, 1] + ((upper_gap_qrf + upper_gap_xgb) / 2)
         return np.stack(
-            [lower_bound, xgb_predictions[:, 1], upper_bound],
+            [lower, xgb_predictions[:, 1], upper],
             axis=1,
         )
 
