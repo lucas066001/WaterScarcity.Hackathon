@@ -11,17 +11,16 @@ Open multi_scenarios.ipynb for comparative visualizations and advanced analysis.
 
 ## Installation
 
-1. Clone the repository:
 ```shell
+
+# Clone the repository:
    git clone https://github.com/yourusername/water-management-simulation.git
 
-2. Install dependencies:
-```shell
+# Install dependencies:
    pip install -r requirements.txt
 
 
-Project Structure
-```shell
+# Project Structure
     ├── parameters/
     │   ├── data.csv               # Real riverflow time series
     │   └── scenarios/             # YAML parameter files for scenarios
