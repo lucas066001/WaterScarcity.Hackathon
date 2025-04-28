@@ -2,6 +2,13 @@
 
 This repository implements an agent-based evolutionary game to study water resource allocation under varying environmental and policy scenarios. It models multiple actors who decide whether to cooperate or defect in water usage, tracks ecological and economic impacts, and provides tools for running simulations and visualizing results.
 
+## Usage
+### Single Scenario (Notebook)
+Open single_scenario.ipynb to run and customize one simulation interactively.
+
+### Multi-Scenario Analysis (Notebook)
+Open multi_scenarios.ipynb for comparative visualizations and advanced analysis.
+
 ## Installation
 
 1. Clone the repository:
@@ -12,12 +19,6 @@ This repository implements an agent-based evolutionary game to study water resou
 ```shell
    pip install -r requirements.txt
 
-## Usage
-### Single Scenario (Notebook)
-Open single_scenario.ipynb to run and customize one simulation interactively.
-
-### Multi-Scenario Analysis (Notebook)
-Open multi_scenarios.ipynb for comparative visualizations and advanced analysis.
 
 Project Structure
 ```shell
