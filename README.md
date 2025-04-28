@@ -14,7 +14,7 @@ Open multi_scenarios.ipynb for comparative visualizations and advanced analysis.
 ```shell
 
 # Clone the repository:
-   git clone https://github.com/yourusername/water-management-simulation.git
+   git clone https://github.com/DavidMedernach/Hackathon-Water-Scarcity.git
 
 # Install dependencies:
    pip install -r requirements.txt
