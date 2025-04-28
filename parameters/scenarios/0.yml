@@ -1,0 +1,22 @@
+parameters:
+  scenario_name: base_case # Le Gave d'Oloron
+  mean_riverflow: 1.3
+  station: 6125320
+  negotiation_difficulty: none # extreme, high, medium, low, none
+  global_forecast_bias: 0.0
+  global_forecast_uncertainty: 0.0
+  scarcity: low # extreme, high, medium, low
+  DOE: .1
+  DCR: .05
+  storage_loss: 0.0
+  actor_files:
+    - actors/A.yml
+    - actors/A.yml
+    - actors/A.yml
+    - actors/A.yml
+    - actors/A.yml
+    - actors/A.yml
+    - actors/E.yml
+    - actors/L.yml
+    - actors/I.yml
+    - actors/D.yml
