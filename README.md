@@ -1,52 +1,39 @@
-# Hackathon on Water Scarcity 2025 - Baseline Model Repository
+# Water Management Simulation
 
-This repository provides a simple toolkit to train baseline models and generate submission files for the [Hackathon on Water Scarcity 2025](https://www.codabench.org/competitions/4335). The baseline models predict water discharge for the 52 stations of eval dataset. You are free to experiment with different modeling approaches or use distinct models per station, as long as your submission file adheres to the required format (see Codabench guidelines).
+This repository implements an agent-based evolutionary game to study water resource allocation under varying environmental and policy scenarios. It models multiple actors who decide whether to cooperate or defect in water usage, tracks ecological and economic impacts, and provides tools for running simulations and visualizing results.
 
-## Data
+## Installation
 
-- **Download:**  
-  Obtain the dataset from [Zenodo](https://zenodo.org/records/14826458).  
-- **Setup:**  
-  Unzip the dataset and place it in the root directory of the repository.
-
-## Notebook Structure
-
-0. **Preprocessing**
-   - *01 - Data Preprocessing*
-   - *02 - Feature Engineering*
-
-1. **Training and Submission**
-   - *03 - Modelisation*
-   - *01 - Prediction Computation*
-
-2. **Exploration**
-   - *01 - Performance Comparison*
-   - *02 - Single Model Optimisation*
-
-
-## Submission
-
-After running the notebooks, create your submission file (`data/evaluation/predictions.zip`) and upload it to [Codabench](https://www.codabench.org/competitions/4335).
-
-## Setup Local Environment
-
-1. **Python Version**
-This repository was developed and tested using Python 3.12.6. For best compatibility, please ensure you are using Python 3.12 or a newer version.
-
-2. **Create your venv - Mac version**
-
+1. Clone the repository:
 ```shell
-# Create a virtual environment
-python3 -m venv .venv
+   git clone https://github.com/yourusername/water-management-simulation.git
 
-# Activate the virtual environment
-source .venv/bin/activate
+2. Install dependencies:
+```shell
+   pip install -r requirements.txt
 
-# Upgrade pip if needed
-pip install --upgrade pip
+## Usage
+### Single Scenario (Notebook)
+Open single_scenario.ipynb to run and customize one simulation interactively.
 
-# Install required packages
-pip install -r requirements.txt
+### Multi-Scenario Analysis (Notebook)
+Open multi_scenarios.ipynb for comparative visualizations and advanced analysis.
 
-# Add the current directory to PYTHONPATH
-export PYTHONPATH="$PYTHONPATH:$PWD"
+Project Structure
+```shell
+    ├── parameters/
+    │   ├── data.csv               # Real riverflow time series
+    │   └── scenarios/             # YAML parameter files for scenarios
+    ├── src/
+    │   ├── core.py                # Main WaterManagementSimulation class
+    │   ├── actors.py              # ActorManager: decision-making & learning
+    │   ├── water_allocation.py    # WaterAllocator: pumping & quota logic
+    │   ├── ecology.py             # EcologyManager: flow & impact calculations
+    │   ├── utils.py               # Helper functions (e.g., YAML loader)
+    │   ├── plot_analysis.py       # Time-series plots for individual runs
+    │   ├── scenarios.py           # Script to batch-run scenarios
+    │   └── plot_multi_analysis.py # Impact trade-off & correlation plots
+    ├── single_scenario.ipynb      # Interactive demo for one scenario
+    ├── multi_scenarios.ipynb      # Comparative analysis notebook
+    ├── requirements.txt           # Python dependencies
+    └── README.md                  # Project overview and usage guide
