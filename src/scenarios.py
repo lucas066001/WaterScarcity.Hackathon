@@ -1,6 +1,7 @@
 import src.utils as utils
 import src.core as wms
 import pandas as pd
+import numpy as np
 from types import MethodType
 from typing import Callable
 
@@ -29,6 +30,10 @@ def run_all_scenarios(
     all_scarcities = []
     all_scenarios = []
     all_stations = []
+    
+    # New data collection lists
+    all_raw_ecological_impact = []  # Raw unscaled ecological impact
+    all_cooperation_percentage = []  # Average percentage of cooperators
     
     # Station definitions
     stations = {
@@ -77,6 +82,13 @@ def run_all_scenarios(
                         # Get scores
                         ecological_impact, economic_impact = simulation.get_final_scores_scaled()
                         
+                        # Calculate raw ecological impact (total number of breaches)
+                        raw_ecol_impact = np.sum(simulation.w_ecol_impact > 0)
+                        
+                        # Calculate average percentage of cooperators
+                        # Average over all iterations and turns
+                        avg_coop = np.mean(simulation.h_actions)
+                        
                         # Store results
                         all_ecological_impact.append(ecological_impact)
                         all_economic_impact.append(economic_impact)
@@ -86,9 +98,14 @@ def run_all_scenarios(
                         all_scenarios.append(scenario)
                         all_stations.append(station)
                         
+                        # Store new metrics
+                        all_raw_ecological_impact.append(float(raw_ecol_impact))
+                        all_cooperation_percentage.append(float(avg_coop))
+                        
                         print(f"Scenario: {scenario}, Station: {station}, Scarcity: {scarcity}, " +
                               f"Bias: {bias}, Uncertainty: {uncertainty}, " +
-                              f"Eco Impact: {ecological_impact:.3f}, Econ Impact: {economic_impact:.3f}")
+                              f"Eco Impact: {ecological_impact:.3f}, Econ Impact: {economic_impact:.3f}, " +
+                              f"Raw Eco Impact: {raw_ecol_impact:.1f}, Cooperation %: {avg_coop*100:.1f}%")
     
     # Create DataFrame with results
     results_df = pd.DataFrame({
@@ -98,7 +115,9 @@ def run_all_scenarios(
         "uncertainty": all_uncertainties,
         "scarcity": all_scarcities,
         "scenario": all_scenarios,
-        "station": all_stations
+        "station": all_stations,
+        "raw_ecological_impact": all_raw_ecological_impact,
+        "cooperation_percentage": all_cooperation_percentage
     })
     
     # Add color mappings
@@ -125,4 +144,3 @@ def run_all_scenarios(
     print(f"Completed {len(results_df)} simulation runs")
     
     return results_df
-

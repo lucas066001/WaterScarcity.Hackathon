@@ -12,6 +12,9 @@ import pandas as pd
 import numpy as np
 from matplotlib.lines import Line2D
 from typing import Dict, List, Optional, Tuple
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import StandardScaler
+
 
 
 # Set consistent styling for all plots
@@ -344,8 +347,8 @@ def analyze_forecast_effects(results_df):
 
 def correlation_analysis(results_df):
     """
-    Perform correlation analysis on simulation results and visualize
-    relationships between factors and outcomes.
+    Perform targeted correlation analysis focusing on relationships between 
+    input parameters and simulation outcomes.
     
     Parameters:
     -----------
@@ -355,83 +358,227 @@ def correlation_analysis(results_df):
     Returns:
     --------
     None
-        Displays correlation heatmaps
+        Displays correlation visualizations
     """
-    # Prepare data for correlation analysis
-    # Select numeric columns for correlation
-    numeric_df = results_df[['ecological_impact', 'economic_impact', 'bias', 'uncertainty']]
+    # Separate input and output variables
+    output_vars = ['ecological_impact', 'economic_impact']
+    input_numeric_vars = ['bias', 'uncertainty']
+    input_categorical_vars = ['scarcity', 'scenario', 'station']
     
-    # Add dummy variables for categorical features
-    cat_df = pd.get_dummies(results_df[['scarcity', 'scenario', 'station']])
+    # Create dummy variables for categorical inputs
+    cat_df = pd.get_dummies(results_df[input_categorical_vars], drop_first=False)
     
-    # Combine for correlation analysis
-    analysis_df = pd.concat([numeric_df, cat_df], axis=1)
+    # Combine all input variables
+    input_df = pd.concat([results_df[input_numeric_vars], cat_df], axis=1)
     
-    # Compute correlation matrix
-    corr_matrix = analysis_df.corr()
+    # Calculate correlation between inputs and outputs
+    correlation_results = calculate_input_output_correlation(input_df, results_df[output_vars])
     
-    # Plot full correlation heatmap
-    plt.figure(figsize=(14, 12))
+    # Visualize correlations
+    plot_input_output_correlation_heatmap(correlation_results)
     
-    # Create mask for upper triangle to declutter the plot
-    mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
+    # Create scatter plots for key numeric relationships
+    plot_key_numeric_relationships(results_df, input_numeric_vars, output_vars)
     
-    # Create improved heatmap
+    # Plot feature importance through a simple regression model
+    plot_feature_importance(input_df, results_df[output_vars])
+
+
+def calculate_input_output_correlation(input_df, output_df):
+    """
+    Calculate correlation between input variables and output metrics.
+    
+    Parameters:
+    -----------
+    input_df : pd.DataFrame
+        DataFrame containing input variables
+    output_df : pd.DataFrame
+        DataFrame containing output variables
+        
+    Returns:
+    --------
+    pd.DataFrame
+        Correlation matrix between inputs and outputs
+    """
+    # Calculate correlation between all input variables and output metrics
+    correlation_matrix = pd.DataFrame()
+    
+    for output_var in output_df.columns:
+        # Calculate correlation of each input with this output
+        correlations = input_df.apply(lambda x: x.corr(output_df[output_var]))
+        correlation_matrix[output_var] = correlations
+    
+    # Sort by the maximum absolute correlation across outputs
+    correlation_matrix['max_abs_corr'] = correlation_matrix.abs().max(axis=1)
+    sorted_matrix = correlation_matrix.sort_values('max_abs_corr', ascending=False)
+    
+    # Remove the helper column
+    sorted_matrix = sorted_matrix.drop('max_abs_corr', axis=1)
+    
+    return sorted_matrix
+
+
+def plot_input_output_correlation_heatmap(correlation_matrix, min_correlation=0.05):
+    """
+    Plot a heatmap of correlations between inputs and outputs.
+    
+    Parameters:
+    -----------
+    correlation_matrix : pd.DataFrame
+        Correlation matrix between inputs and outputs
+    min_correlation : float
+        Minimum absolute correlation to include in the plot
+    """
+    # Filter for significant correlations
+    significant_correlations = correlation_matrix[
+        correlation_matrix.abs().max(axis=1) >= min_correlation
+    ]
+    
+    if len(significant_correlations) == 0:
+        print("No significant correlations found.")
+        return
+    
+    # Create a more focused heatmap
+    plt.figure(figsize=(10, max(8, len(significant_correlations) * 0.4)))
     sns.heatmap(
-        corr_matrix, 
-        annot=True, 
-        cmap=COLOR_SCHEMES['correlation'], 
-        center=0,
-        fmt='.2f',
-        linewidths=0.5,
-        mask=mask,  # Only show lower triangle
-        annot_kws={"size": 8}
-    )
-    plt.title('Correlation Matrix of Simulation Factors and Impacts', fontsize=16)
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    plt.show()
-    
-    # Focus on key impact correlations - more targeted analysis
-    # Extract only columns that have significant correlation with impacts
-    impact_columns = ['ecological_impact', 'economic_impact']
-    
-    # Filter for columns with meaningful correlations
-    threshold = 0.1
-    corr_with_impacts = corr_matrix[impact_columns].abs().max(axis=1) >= threshold
-    filtered_corr = corr_matrix.loc[corr_with_impacts, impact_columns]
-    
-    # Sort by magnitude of ecological impact correlation
-    filtered_corr = filtered_corr.sort_values(by='ecological_impact', key=abs, ascending=False)
-    
-    # Create focused heatmap
-    plt.figure(figsize=(10, 12))
-    sns.heatmap(
-        filtered_corr,
+        significant_correlations,
         annot=True,
-        cmap=COLOR_SCHEMES['correlation'],
+        cmap='coolwarm',
         center=0,
         fmt='.2f',
         linewidths=0.5,
-        cbar_kws={"shrink": 0.8}
+        cbar_kws={"shrink": 0.8, "label": "Correlation Coefficient"}
     )
-    plt.title('Key Factors Correlated with Impact Metrics', fontsize=16)
+    plt.title('Correlation Between Input Parameters and Simulation Outcomes', fontsize=16)
     plt.tight_layout()
     plt.show()
     
-    # Additional scatter plot matrix for key numeric variables
+    # Print the top positive and negative correlations for each output
+    print_top_correlations(correlation_matrix)
+
+
+def print_top_correlations(correlation_matrix, top_n=5):
+    """
+    Print the top positive and negative correlations for each output variable.
+    
+    Parameters:
+    -----------
+    correlation_matrix : pd.DataFrame
+        Correlation matrix between inputs and outputs
+    top_n : int
+        Number of top correlations to print
+    """
+    for output_var in correlation_matrix.columns:
+        print(f"\nTop impacts on {output_var}:")
+        
+        # Get series for this output
+        corr_series = correlation_matrix[output_var].sort_values(ascending=False)
+        
+        # Print top positive correlations
+        print(f"\nTop {top_n} positive correlations:")
+        for idx, value in corr_series.head(top_n).items():
+            print(f"  {idx}: {value:.3f}")
+        
+        # Print top negative correlations
+        print(f"\nTop {top_n} negative correlations:")
+        for idx, value in corr_series.tail(top_n).items():
+            print(f"  {idx}: {value:.3f}")
+
+
+def plot_key_numeric_relationships(results_df, input_vars, output_vars):
+    """
+    Create scatter plots for key numeric relationships.
+    
+    Parameters:
+    -----------
+    results_df : pd.DataFrame
+        Complete results DataFrame
+    input_vars : list
+        List of input variable names
+    output_vars : list
+        List of output variable names
+    """
+    # For each numeric input, plot its relationship with outputs
+    for input_var in input_vars:
+        fig, axes = plt.subplots(1, len(output_vars), figsize=(14, 6), sharex=True)
+        if len(output_vars) == 1:
+            axes = [axes]  # Make it iterable for the loop below
+            
+        for i, output_var in enumerate(output_vars):
+            sns.scatterplot(
+                x=input_var,
+                y=output_var,
+                hue='scarcity',
+                palette=COLOR_SCHEMES['scarcity'],
+                data=results_df,
+                alpha=0.7,
+                s=60,
+                ax=axes[i]
+            )
+            
+            # Calculate and plot trendline
+            z = np.polyfit(results_df[input_var], results_df[output_var], 1)
+            p = np.poly1d(z)
+            x_range = np.linspace(results_df[input_var].min(), results_df[input_var].max(), 100)
+            axes[i].plot(x_range, p(x_range), '--', color='black', linewidth=1)
+            
+            # Calculate correlation coefficient
+            corr = results_df[[input_var, output_var]].corr().iloc[0, 1]
+            axes[i].set_title(f"{output_var.replace('_', ' ').title()} vs {input_var.replace('_', ' ').title()}\nCorrelation: {corr:.3f}", fontsize=12)
+            
+            # Add regression equation to the plot
+            equation = f'y = {z[0]:.3f}x + {z[1]:.3f}'
+            axes[i].annotate(equation, xy=(0.05, 0.95), xycoords='axes fraction', fontsize=10,
+                         bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8))
+        
+        fig.suptitle(f"Impact of {input_var.replace('_', ' ').title()} on Simulation Outcomes", fontsize=16, y=1.05)
+        plt.tight_layout()
+        plt.show()
+
+
+def plot_feature_importance(input_df, output_df):
+    """
+    Calculate and visualize feature importance using a simple model.
+    
+    Parameters:
+    -----------
+    input_df : pd.DataFrame
+        DataFrame containing input variables
+    output_df : pd.DataFrame
+        DataFrame containing output variables
+    """
+
+    
     plt.figure(figsize=(12, 10))
-    key_vars = ['ecological_impact', 'economic_impact', 'bias', 'uncertainty']
-    g = sns.pairplot(
-        results_df,
-        vars=key_vars,
-        hue='scarcity',
-        palette=COLOR_SCHEMES['scarcity'],
-        plot_kws={'alpha': 0.6, 's': 50, 'edgecolor': 'w', 'linewidth': 0.5},
-        diag_kind='kde',
-        corner=True
+    
+    # Create subplots for each output variable
+    fig, axes = plt.subplots(len(output_df.columns), 1, figsize=(10, 5 * len(output_df.columns)))
+    if len(output_df.columns) == 1:
+        axes = [axes]
+    
+    # Scale the input features for better model performance
+    scaler = StandardScaler()
+    input_scaled = pd.DataFrame(
+        scaler.fit_transform(input_df),
+        columns=input_df.columns
     )
-    g.fig.suptitle('Relationships Between Key Variables', y=1.02, fontsize=16)
+    
+    for i, output_var in enumerate(output_df.columns):
+        # Create and train a random forest model
+        model = RandomForestRegressor(n_estimators=100, random_state=42)
+        model.fit(input_scaled, output_df[output_var])
+        
+        # Get feature importances
+        importances = pd.Series(model.feature_importances_, index=input_df.columns)
+        importances = importances.sort_values(ascending=False)
+        
+        # Plot the top importances
+        top_n = min(15, len(importances))  # Show at most 15 features
+        importances.head(top_n).plot(kind='barh', ax=axes[i])
+        
+        axes[i].set_title(f"Feature Importance for {output_var.replace('_', ' ').title()}", fontsize=14)
+        axes[i].set_xlabel('Importance Score', fontsize=12)
+        
     plt.tight_layout()
     plt.show()
 
@@ -727,61 +874,508 @@ def create_forecast_effect_plot(df, x, y, ax, size_var=None, abs_size=False):
     ax.set_ylabel(y.replace("_", " ").title(), fontsize=12)
 
 
-# =====================================================================
-# Example Usage
-# =====================================================================
-
-if __name__ == "__main__":
-    # This is a demonstration of how to use these functions
-    # Create some synthetic data to show the plots
+def analyze_cooperation_patterns(results_df):
+    """
+    Analyze cooperation patterns across different scenarios, scarcity levels,
+    and forecast parameters.
     
-    np.random.seed(42)
-    
-    # Generate synthetic data
-    n = 100
-    scenarios = ['0.yml', '1.yml', '0-v.yml', '1-v.yml', '0-b.yml', '1-b.yml', '0-c.yml', '1-c.yml']
-    scarcities = ['low', 'medium', 'high']
-    stations = [1, 2]
-    
-    # Create data frame
-    data = {
-        'ecological_impact': np.random.uniform(0, 1, n),
-        'economic_impact': np.random.uniform(0, 1, n),
-        'bias': np.random.uniform(-0.5, 0.5, n),
-        'uncertainty': np.random.uniform(0, 0.5, n),
-        'scenario': np.random.choice(scenarios, n),
-        'scarcity': np.random.choice(scarcities, n),
-        'station': np.random.choice(stations, n)
-    }
-    
-    # Introduce some correlations
-    for i in range(n):
-        if data['scarcity'][i] == 'high':
-            data['ecological_impact'][i] += 0.2
-            data['economic_impact'][i] -= 0.1
-        elif data['scarcity'][i] == 'low':
-            data['ecological_impact'][i] -= 0.1
-            data['economic_impact'][i] += 0.1
-            
-        # Bias affects economic impact
-        data['economic_impact'][i] += data['bias'][i] * 0.2
+    Parameters:
+    -----------
+    results_df : pd.DataFrame
+        DataFrame containing simulation results with cooperation_percentage
+        and related parameters
         
-        # Station affects ecological impact
-        if data['station'][i] == 1:
-            data['ecological_impact'][i] -= 0.05
+    Returns:
+    --------
+    None
+        Displays visualizations showing cooperation patterns
+    """
+    # Create main figure for analysis
+    fig, axs = plt.subplots(2, 2, figsize=(18, 16))
     
-    # Ensure values are in valid range
-    data['ecological_impact'] = np.clip(data['ecological_impact'], 0, 1)
-    data['economic_impact'] = np.clip(data['economic_impact'], 0, 1)
+    # 1. Cooperation by scarcity level - violin plot
+    sns.violinplot(
+        data=results_df,
+        x='scarcity',
+        y='cooperation_percentage',
+        palette=COLOR_SCHEMES['scarcity'],
+        ax=axs[0, 0],
+        inner='quartile',
+        density_norm='width'
+    )
     
-    df = pd.DataFrame(data)
+    # Add individual data points
+    sns.stripplot(
+        data=results_df,
+        x='scarcity',
+        y='cooperation_percentage',
+        ax=axs[0, 0],
+        size=4,
+        alpha=0.6,
+        jitter=True,
+        color='black',
+        zorder=1
+    )
     
-    # Run the analysis functions
-    print("Analyzing scenario impacts...")
-    analyze_scenario_impacts(df)
+    # Improve appearance
+    axs[0, 0].set_title('Cooperation Percentage by Scarcity Level', fontsize=15)
+    axs[0, 0].set_xlabel('Scarcity Level', fontsize=12)
+    axs[0, 0].set_ylabel('Cooperation Percentage', fontsize=12)
+    axs[0, 0].set_ylim(0, 1.0)
     
-    print("Analyzing forecast effects...")
-    analyze_forecast_effects(df)
+    # 2. Cooperation vs Economic Impact scatter
+    sns.scatterplot(
+        data=results_df,
+        x='cooperation_percentage',
+        y='economic_impact',
+        hue='scarcity',
+        palette=COLOR_SCHEMES['scarcity'],
+        size='uncertainty',
+        sizes=(50, 200),
+        ax=axs[0, 1],
+        alpha=0.7
+    )
     
-    print("Performing correlation analysis...")
-    correlation_analysis(df)
+    axs[0, 1].set_title('Cooperation vs Economic Impact', fontsize=15)
+    axs[0, 1].set_xlabel('Cooperation Percentage', fontsize=12)
+    axs[0, 1].set_ylabel('Economic Impact', fontsize=12)
+    axs[0, 1].grid(True, alpha=0.3)
+    
+    # 3. Cooperation vs Raw Ecological Impact
+    sns.scatterplot(
+        data=results_df,
+        x='cooperation_percentage',
+        y='raw_ecological_impact',
+        hue='scarcity',
+        palette=COLOR_SCHEMES['scarcity'],
+        size='uncertainty',
+        sizes=(50, 200),
+        ax=axs[1, 0],
+        alpha=0.7
+    )
+    
+    axs[1, 0].set_title('Cooperation vs Raw Ecological Impact', fontsize=15)
+    axs[1, 0].set_xlabel('Cooperation Percentage', fontsize=12)
+    axs[1, 0].set_ylabel('Raw Ecological Impact (# of breaches)', fontsize=12)
+    axs[1, 0].grid(True, alpha=0.3)
+    
+    # 4. Cooperation by Scenario
+    scenario_coop = results_df.groupby('scenario')['cooperation_percentage'].agg(['mean', 'std']).reset_index()
+    scenario_coop = scenario_coop.sort_values('mean', ascending=False)
+    
+    # Create a list of colors for each scenario
+    scenario_colors = [COLOR_SCHEMES['scenario'].get(s, {}).get('color', '#333333') for s in scenario_coop['scenario']]
+    
+    # Create bar plot with error bars
+    bars = axs[1, 1].bar(
+        scenario_coop['scenario'],
+        scenario_coop['mean'],
+        yerr=scenario_coop['std'],
+        alpha=0.8,
+        capsize=5,
+        color=scenario_colors
+    )
+    
+    axs[1, 1].set_title('Average Cooperation by Scenario', fontsize=15)
+    axs[1, 1].set_xlabel('Scenario', fontsize=12)
+    axs[1, 1].set_ylabel('Cooperation Percentage', fontsize=12)
+    axs[1, 1].set_ylim(0, 1.0)
+    axs[1, 1].grid(True, alpha=0.3, axis='y')
+    plt.setp(axs[1, 1].get_xticklabels(), rotation=45, ha='right')
+    
+    plt.tight_layout()
+    plt.show()
+
+
+def analyze_raw_ecological_impact(results_df):
+    """
+    Analyze raw (unscaled) ecological impact across different scenarios, 
+    stations, and scarcity levels.
+    
+    Parameters:
+    -----------
+    results_df : pd.DataFrame
+        DataFrame containing simulation results with raw_ecological_impact
+        
+    Returns:
+    --------
+    None
+        Displays visualizations showing raw ecological impact patterns
+    """
+    # Create figure with 2 rows, 2 columns
+    fig, axs = plt.subplots(2, 2, figsize=(18, 16))
+    
+    # 1. Raw ecological impact by scarcity level
+    sns.boxplot(
+        data=results_df,
+        x='scarcity',
+        y='raw_ecological_impact',
+        palette=COLOR_SCHEMES['scarcity'],
+        ax=axs[0, 0]
+    )
+    
+    # Add individual data points
+    sns.stripplot(
+        data=results_df,
+        x='scarcity',
+        y='raw_ecological_impact',
+        ax=axs[0, 0],
+        size=4,
+        alpha=0.6,
+        jitter=True,
+        color='black',
+        zorder=1
+    )
+    
+    axs[0, 0].set_title('Raw Ecological Impact by Scarcity Level', fontsize=15)
+    axs[0, 0].set_xlabel('Scarcity Level', fontsize=12)
+    axs[0, 0].set_ylabel('Raw Ecological Impact (# of breaches)', fontsize=12)
+    
+    # 2. Raw ecological impact by station
+    # Create a custom palette that handles both integer and string station IDs
+    station_palette = {}
+    for station_id in results_df['station'].unique():
+        # Convert to integer for lookup in COLOR_SCHEMES if it's a string
+        lookup_id = int(str(station_id)) if isinstance(station_id, str) else station_id
+        station_palette[str(station_id)] = COLOR_SCHEMES['station'][lookup_id]
+        print(station_id)
+    print(station_palette)
+    sns.boxplot(
+        data=results_df,
+        x='station',
+        y='raw_ecological_impact',
+        palette=station_palette,
+        ax=axs[0, 1]
+    )
+    
+    # Add individual data points
+    sns.stripplot(
+        data=results_df,
+        x='station',
+        y='raw_ecological_impact',
+        ax=axs[0, 1],
+        size=4,
+        alpha=0.6,
+        jitter=True,
+        color='black',
+        zorder=1
+    )
+    
+    axs[0, 1].set_title('Raw Ecological Impact by River Basin Size', fontsize=15)
+    axs[0, 1].set_xlabel('Station (1: Small Basin, 2: Large Basin)', fontsize=12)
+    axs[0, 1].set_ylabel('Raw Ecological Impact (# of breaches)', fontsize=12)
+    
+    # 3. Raw ecological impact vs bias, colored by uncertainty
+    sns.scatterplot(
+        data=results_df,
+        x='bias',
+        y='raw_ecological_impact',
+        hue='uncertainty',
+        palette='viridis',
+        size='cooperation_percentage',
+        sizes=(50, 200),
+        ax=axs[1, 0],
+        alpha=0.7
+    )
+    
+    axs[1, 0].set_title('Effect of Forecast Bias on Raw Ecological Impact', fontsize=15)
+    axs[1, 0].set_xlabel('Forecast Bias', fontsize=12)
+    axs[1, 0].set_ylabel('Raw Ecological Impact (# of breaches)', fontsize=12)
+    axs[1, 0].grid(True, alpha=0.3)
+    
+    # 4. Raw ecological impact vs Economic impact colored by cooperation
+    scatter = axs[1, 1].scatter(
+        results_df['raw_ecological_impact'],
+        results_df['economic_impact'],
+        c=results_df['cooperation_percentage'],
+        cmap='viridis',
+        s=80,
+        alpha=0.7
+    )
+    
+    # Add colorbar
+    cbar = plt.colorbar(scatter, ax=axs[1, 1])
+    cbar.set_label('Cooperation Percentage', fontsize=12)
+    
+    # Add labels
+    axs[1, 1].set_xlabel('Raw Ecological Impact (# of breaches)', fontsize=12)
+    axs[1, 1].set_ylabel('Economic Impact', fontsize=12)
+    axs[1, 1].set_title('Trade-off: Raw Ecological vs Economic Impact', fontsize=15)
+    axs[1, 1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+
+
+def analyze_cooperation_by_forecast_params(results_df):
+    """
+    Analyze how forecast parameters (bias and uncertainty) affect cooperation levels.
+    
+    Parameters:
+    -----------
+    results_df : pd.DataFrame
+        DataFrame containing simulation results
+        
+    Returns:
+    --------
+    None
+        Displays visualizations showing cooperation patterns
+    """
+    # Create figure
+    fig, axs = plt.subplots(1, 2, figsize=(18, 8))
+    
+    # 1. Cooperation vs Bias by uncertainty
+    # Create pivot table for heatmap
+    pivot_bias = results_df.pivot_table(
+        index='bias', 
+        columns='uncertainty',
+        values='cooperation_percentage',
+        aggfunc='mean'
+    )
+    
+    # Create heatmap
+    sns.heatmap(
+        pivot_bias,
+        annot=True,
+        cmap='viridis',
+        fmt='.2f',
+        ax=axs[0],
+        cbar_kws={'label': 'Cooperation Percentage'}
+    )
+    
+    axs[0].set_title('Cooperation % by Forecast Bias and Uncertainty', fontsize=15)
+    axs[0].set_xlabel('Uncertainty', fontsize=12)
+    axs[0].set_ylabel('Bias', fontsize=12)
+    
+    # 2. 3D plot: Cooperation vs Bias and Uncertainty by Scarcity
+    for scarcity, group in results_df.groupby('scarcity'):
+        # Make sure the color lookup works
+        color = COLOR_SCHEMES['scarcity'].get(scarcity, '#333333')  # Default to dark gray if not found
+        
+        axs[1].scatter(
+            group['bias'],
+            group['uncertainty'],
+            s=group['cooperation_percentage'] * 300,  # Size based on cooperation %
+            alpha=0.7,
+            label=f'Scarcity: {scarcity}',
+            color=color
+        )
+    
+    axs[1].set_title('Cooperation by Forecast Parameters and Scarcity', fontsize=15)
+    axs[1].set_xlabel('Bias', fontsize=12)
+    axs[1].set_ylabel('Uncertainty', fontsize=12)
+    axs[1].grid(True, alpha=0.3)
+    axs[1].legend()
+    
+    # Add text explaining the bubble size
+    axs[1].text(
+        0.05, 0.95, 
+        "Bubble size = cooperation %", 
+        transform=axs[1].transAxes,
+        fontsize=12,
+        bbox=dict(facecolor='white', alpha=0.7)
+    )
+    
+    plt.tight_layout()
+    plt.show()
+
+
+def comprehensive_analysis(results_df):
+    """
+    Perform a comprehensive analysis of all key metrics and their relationships.
+    
+    Parameters:
+    -----------
+    results_df : pd.DataFrame
+        DataFrame containing simulation results
+        
+    Returns:
+    --------
+    None
+        Displays comprehensive visualizations and summary statistics
+    """
+    # Print overall summary statistics
+    print("=== Summary Statistics ===")
+    print("\nOverall Metrics:")
+    print(f"Average Cooperation: {results_df['cooperation_percentage'].mean():.2f}")
+    print(f"Average Raw Ecological Impact: {results_df['raw_ecological_impact'].mean():.1f} breaches")
+    print(f"Average Scaled Ecological Impact: {results_df['ecological_impact'].mean():.3f}")
+    print(f"Average Economic Impact: {results_df['economic_impact'].mean():.3f}")
+    
+    print("\nCorrelation Matrix:")
+    corr_matrix = results_df[['cooperation_percentage', 'raw_ecological_impact', 
+                             'ecological_impact', 'economic_impact', 
+                             'bias', 'uncertainty']].corr()
+    print(corr_matrix.round(2))
+    
+    # Create summary by scarcity level
+    print("\nMetrics by Scarcity Level:")
+    scarcity_summary = results_df.groupby('scarcity').agg({
+        'cooperation_percentage': 'mean',
+        'raw_ecological_impact': 'mean',
+        'ecological_impact': 'mean',
+        'economic_impact': 'mean'
+    })
+    print(scarcity_summary.round(3))
+    
+    # Create figure for comprehensive visualization
+    fig, axs = plt.subplots(2, 2, figsize=(18, 16))
+    
+    # 1. 3D-like scatter plot: Ecological vs Economic vs Cooperation
+    scatter = axs[0, 0].scatter(
+        results_df['ecological_impact'],
+        results_df['economic_impact'],
+        c=results_df['cooperation_percentage'],
+        s=80,
+        cmap='viridis',
+        alpha=0.7
+    )
+    
+    # Add colorbar
+    cbar = plt.colorbar(scatter, ax=axs[0, 0])
+    cbar.set_label('Cooperation Percentage', fontsize=12)
+    
+    # Add reference diagonal line
+    xlim = axs[0, 0].get_xlim()
+    ylim = axs[0, 0].get_ylim()
+    axs[0, 0].plot([xlim[0], xlim[1]], [ylim[1], ylim[0]], 'k--', alpha=0.3, linewidth=1)
+    
+    # Improve appearance
+    axs[0, 0].set_title('Impact Metrics Colored by Cooperation', fontsize=15)
+    axs[0, 0].set_xlabel('Ecological Impact (lower is better)', fontsize=12)
+    axs[0, 0].set_ylabel('Economic Impact (higher is better)', fontsize=12)
+    axs[0, 0].grid(True, alpha=0.3)
+    
+    # 2. Parallel coordinates plot for multi-dimensional analysis
+    from pandas.plotting import parallel_coordinates
+    
+    # Create a sample for parallel coordinates (too many lines is unreadable)
+    # Group by scenario and scarcity and take the mean
+    parallel_df = results_df.groupby(['scenario', 'scarcity']).agg({
+        'cooperation_percentage': 'mean',
+        'raw_ecological_impact': 'mean',
+        'ecological_impact': 'mean',
+        'economic_impact': 'mean',
+        'scarcity_color': 'first'
+    }).reset_index()
+    
+    # Normalize values for better visualization
+    for col in ['cooperation_percentage', 'raw_ecological_impact', 
+                'ecological_impact', 'economic_impact']:
+        min_val = parallel_df[col].min()
+        max_val = parallel_df[col].max()
+        # Avoid division by zero
+        if max_val > min_val:
+            parallel_df[col] = (parallel_df[col] - min_val) / (max_val - min_val)
+        else:
+            parallel_df[col] = 0.5  # Set to middle value if no variation
+    
+    # Add scenario-scarcity column for label
+    parallel_df['scenario_scarcity'] = parallel_df['scenario'].str.replace('.yml', '') + \
+                                       ' (' + parallel_df['scarcity'] + ')'
+    
+    # Make sure we have colors for all scarcity levels
+    colors = [COLOR_SCHEMES['scarcity'].get(s, '#333333') for s in parallel_df['scarcity']]
+    
+    # Create parallel coordinates plot
+    try:
+        parallel_coordinates(
+            parallel_df, 
+            'scarcity',
+            cols=['cooperation_percentage', 'raw_ecological_impact', 
+                  'ecological_impact', 'economic_impact'],
+            color=colors,
+            ax=axs[0, 1],
+            alpha=0.7
+        )
+        
+        axs[0, 1].set_title('Parallel Coordinates: Multi-Metric Comparison', fontsize=15)
+        axs[0, 1].set_ylabel('Normalized Value', fontsize=12)
+        axs[0, 1].grid(True, alpha=0.3)
+    except Exception as e:
+        print(f"Error in parallel coordinates plot: {e}")
+        axs[0, 1].text(0.5, 0.5, "Parallel coordinates plot error", 
+                      ha='center', va='center', fontsize=14)
+    
+    # 3. Raw Ecological Impact vs Forecast Parameters
+    ax3 = axs[1, 0]
+    
+    try:
+        # Create pivot table for contour plot
+        pivot_raw_eco = results_df.pivot_table(
+            index='bias',
+            columns='uncertainty',
+            values='raw_ecological_impact',
+            aggfunc='mean'
+        )
+        
+        # Create contour plot with filled contours
+        contour = ax3.contourf(
+            pivot_raw_eco.columns, 
+            pivot_raw_eco.index, 
+            pivot_raw_eco.values,
+            levels=15,
+            cmap='RdYlGn_r'  # Red for high impact (bad), green for low impact (good)
+        )
+        
+        # Add contour lines
+        ax3.contour(
+            pivot_raw_eco.columns,
+            pivot_raw_eco.index,
+            pivot_raw_eco.values,
+            levels=15,
+            colors='k',
+            alpha=0.3,
+            linewidths=0.5
+        )
+        
+        # Add colorbar
+        cbar = plt.colorbar(contour, ax=ax3)
+        cbar.set_label('Raw Ecological Impact (# of breaches)', fontsize=12)
+        
+        # Improve appearance
+        ax3.set_title('Raw Ecological Impact by Forecast Parameters', fontsize=15)
+        ax3.set_xlabel('Uncertainty', fontsize=12)
+        ax3.set_ylabel('Bias', fontsize=12)
+    except Exception as e:
+        print(f"Error in contour plot: {e}")
+        ax3.text(0.5, 0.5, "Contour plot error", 
+                ha='center', va='center', fontsize=14)
+    
+    # 4. Final plot: Economic Impact vs Cooperation with regression line by scarcity
+    ax4 = axs[1, 1]
+    
+    # Create scatter plot with regression line for each scarcity level
+    for scarcity, group in results_df.groupby('scarcity'):
+        # Make sure the color lookup works
+        color = COLOR_SCHEMES['scarcity'].get(scarcity, '#333333')  # Default gray if not found
+        
+        try:
+            sns.regplot(
+                x='cooperation_percentage',
+                y='economic_impact',
+                data=group,
+                ax=ax4,
+                scatter_kws={'alpha': 0.6, 's': 50, 'color': color},
+                line_kws={'color': color, 'lw': 2},
+                label=f'Scarcity: {scarcity}'
+            )
+        except Exception as e:
+            print(f"Error in regression plot for {scarcity}: {e}")
+            # Still add the scatter points without regression line
+            ax4.scatter(
+                group['cooperation_percentage'],
+                group['economic_impact'],
+                alpha=0.6, s=50, color=color,
+                label=f'Scarcity: {scarcity} (no regression)'
+            )
+    
+    # Improve appearance
+    ax4.set_title('Economic Impact vs Cooperation by Scarcity Level', fontsize=15)
+    ax4.set_xlabel('Cooperation Percentage', fontsize=12)
+    ax4.set_ylabel('Economic Impact', fontsize=12)
+    ax4.grid(True, alpha=0.3)
+    ax4.legend()
+    
+    plt.tight_layout()
+    plt.show()
