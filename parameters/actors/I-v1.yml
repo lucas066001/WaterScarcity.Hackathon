@@ -1,0 +1,17 @@
+parameters:
+  type: Industry
+  name: Industry small var.
+  demands: 3
+  storage_capa: 3
+  initial_storage: 4
+  forecast_bias: 0.0
+  forecast_uncertainty: 0.25
+  ict: .5
+  lr_factor: 0.005
+  values: 10.0
+  ecol_impact: 0.0
+  priority: 0
+  reput_cost: 0.0
+  baseline_income_factor: 1.0
+
+  
