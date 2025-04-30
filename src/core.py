@@ -58,6 +58,7 @@ class WaterManagementSimulation:
         'actors_reput_cost',
         'actors_baseline_income_factor',
         'actors_name',
+        'verbose'
     }
 
     def __init__(self, **args):
