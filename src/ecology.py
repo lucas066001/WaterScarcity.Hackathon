@@ -109,7 +109,7 @@ class EcologyManager:
         max_ecol_impact = -min(riverflow - self.sim.DCR - total_demand, 0)
         self.sim.w_max_ecol_impact[self.sim.it, self.sim.trn] = max_ecol_impact
     
-    def _compute_class_sats(self, medium_idxs: np.ndarray, low_idxs: np.ndarray) -> Tuple[float, float]:
+    def _compute_class_sats(self, high_idxs: np.ndarray, medium_idxs: np.ndarray, low_idxs: np.ndarray) -> Tuple[float, float]:
         """
         Compute the mean satisfaction ratio for different priority classes.
         
@@ -117,11 +117,13 @@ class EcologyManager:
         grouped by their priority levels.
         
         Args:
+            high_idxs: Indices of high-priority actors.
             medium_idxs: Indices of medium-priority actors.
             low_idxs: Indices of low-priority actors.
             
         Returns:
             Tuple containing:
+                - Average satisfaction ratio for high-priority actors
                 - Average satisfaction ratio for medium-priority actors
                 - Average satisfaction ratio for low-priority actors
         """
@@ -132,10 +134,11 @@ class EcologyManager:
         sat = self.sim.h_water_used / demands_expanded
 
         # Average over actors, iterations, and turns
+        high_sat = sat[high_idxs].mean() if len(high_idxs) > 0 else 0.0
         med_sat = sat[medium_idxs].mean() if len(medium_idxs) > 0 else 0.0
         low_sat = sat[low_idxs].mean() if len(low_idxs) > 0 else 0.0
         
-        return med_sat, low_sat
+        return high_sat, med_sat, low_sat
     
     def calculate_final_scores(self) -> List[float]:
         """
@@ -169,14 +172,15 @@ class EcologyManager:
         self.sim.h_subventions = -np.where(self.sim.h_policies < 0, self.sim.h_policies, 0)
 
         # 4) Identify priority classes
+        high_idxs = np.where(self.sim.actors_priority == 2)[0]
         medium_idxs = np.where(self.sim.actors_priority == 1)[0]
         low_idxs = np.where(self.sim.actors_priority == 0)[0]
 
         # 5) Calculate satisfaction ratios by priority class
-        med_sat, low_sat = self._compute_class_sats(medium_idxs, low_idxs)
+        high_sat, med_sat, low_sat = self._compute_class_sats(high_idxs, medium_idxs, low_idxs)
 
         # 6) Compute stress-scaled factor for constraint
-        alpha = 0.1
+        alpha = 0.01
         stress_ratio = np.mean((self.sim.w_crisis == 0) | (self.sim.w_crisis == 1))  # fraction of turns in alert/crisis
         factor = 1.0 + alpha * stress_ratio
 
@@ -184,8 +188,15 @@ class EcologyManager:
         if len(medium_idxs) > 0 and len(low_idxs) > 0 and med_sat <= low_sat * factor:
             if hasattr(self.sim, 'verbose') and self.sim.verbose:
                 print("Violation: medium-priority actors must outperform low-priority actors by factor", factor)
+                print("High satisfaction:", high_sat, "Medium satisfaction:", med_sat, "Low satisfaction:", low_sat)
             # Return the scores as they are, but in a real application might penalize further
-            return [ecol_breach, economic_impact]
+            return [2.0, -2.0]
+        if len(high_idxs) > 0 and len(medium_idxs) > 0 and high_sat <= med_sat * factor:
+            if hasattr(self.sim, 'verbose') and self.sim.verbose:
+                print("Violation: medium-priority actors must outperform low-priority actors by factor", factor)
+                print("High satisfaction:", high_sat, "Medium satisfaction:", med_sat, "Low satisfaction:", low_sat)
+            # Return the scores as they are, but in a real application might penalize further
+            return [2.0, -2.0]
         else:
             # No violation, return normal scores
             return [ecol_breach, economic_impact]

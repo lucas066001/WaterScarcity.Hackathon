@@ -959,29 +959,29 @@ def analyze_cooperation_patterns(results_df):
     axs[1, 0].set_ylabel('Raw Ecological Impact (# of breaches)', fontsize=12)
     axs[1, 0].grid(True, alpha=0.3)
     
-    # 4. Cooperation by Scenario
-    scenario_coop = results_df.groupby('scenario')['cooperation_percentage'].agg(['mean', 'std']).reset_index()
-    scenario_coop = scenario_coop.sort_values('mean', ascending=False)
-    
-    # Create a list of colors for each scenario
-    scenario_colors = [COLOR_SCHEMES['scenario'].get(s, {}).get('color', '#333333') for s in scenario_coop['scenario']]
+    # 4. Cooperation by Watershed
+    station_coop = results_df.groupby('station')['cooperation_percentage'].agg(['mean', 'std']).reset_index()
+    station_coop = station_coop.sort_values('mean', ascending=False)
+    station_coop['station'] = station_coop['station']
+
+    # Create a list of colors for each station
+    station_colors = [COLOR_SCHEMES['station'][s] for s in station_coop['station']]
     
     # Create bar plot with error bars
     bars = axs[1, 1].bar(
-        scenario_coop['scenario'],
-        scenario_coop['mean'],
-        yerr=scenario_coop['std'],
+        station_coop['station'].astype(str),
+        station_coop['mean'],
+        yerr=station_coop['std'],
         alpha=0.8,
         capsize=5,
-        color=scenario_colors
+        color=station_colors,
     )
     
-    axs[1, 1].set_title('Average Cooperation by Scenario', fontsize=15)
-    axs[1, 1].set_xlabel('Scenario', fontsize=12)
+    axs[1, 1].set_title('Average Cooperation by Station', fontsize=15)
+    axs[1, 1].set_xlabel('Station', fontsize=12)
     axs[1, 1].set_ylabel('Cooperation Percentage', fontsize=12)
     axs[1, 1].set_ylim(0, 1.0)
     axs[1, 1].grid(True, alpha=0.3, axis='y')
-    plt.setp(axs[1, 1].get_xticklabels(), rotation=45, ha='right')
     
     plt.tight_layout()
     plt.show()
@@ -1122,7 +1122,7 @@ def analyze_cooperation_by_forecast_params(results_df):
         Displays visualizations showing cooperation patterns
     """
     # Create figure
-    fig, axs = plt.subplots(1, 2, figsize=(18, 8))
+    fig, ax = plt.subplots(1, 1, figsize=(18, 8))
     
     # 1. Cooperation vs Bias by uncertainty
     # Create pivot table for heatmap
@@ -1139,42 +1139,13 @@ def analyze_cooperation_by_forecast_params(results_df):
         annot=True,
         cmap='viridis',
         fmt='.2f',
-        ax=axs[0],
+        ax=ax,
         cbar_kws={'label': 'Cooperation Percentage'}
     )
     
-    axs[0].set_title('Cooperation % by Forecast Bias and Uncertainty', fontsize=15)
-    axs[0].set_xlabel('Uncertainty', fontsize=12)
-    axs[0].set_ylabel('Bias', fontsize=12)
-    
-    # 2. 3D plot: Cooperation vs Bias and Uncertainty by Scarcity
-    for scarcity, group in results_df.groupby('scarcity'):
-        # Make sure the color lookup works
-        color = COLOR_SCHEMES['scarcity'].get(scarcity, '#333333')  # Default to dark gray if not found
-        
-        axs[1].scatter(
-            group['bias'],
-            group['uncertainty'],
-            s=group['cooperation_percentage'] * 300,  # Size based on cooperation %
-            alpha=0.7,
-            label=f'Scarcity: {scarcity}',
-            color=color
-        )
-    
-    axs[1].set_title('Cooperation by Forecast Parameters and Scarcity', fontsize=15)
-    axs[1].set_xlabel('Bias', fontsize=12)
-    axs[1].set_ylabel('Uncertainty', fontsize=12)
-    axs[1].grid(True, alpha=0.3)
-    axs[1].legend()
-    
-    # Add text explaining the bubble size
-    axs[1].text(
-        0.05, 0.95, 
-        "Bubble size = cooperation %", 
-        transform=axs[1].transAxes,
-        fontsize=12,
-        bbox=dict(facecolor='white', alpha=0.7)
-    )
+    ax.set_title('Cooperation % by Forecast Bias and Uncertainty', fontsize=15)
+    ax.set_xlabel('Uncertainty', fontsize=12)
+    ax.set_ylabel('Bias', fontsize=12)
     
     plt.tight_layout()
     plt.show()
@@ -1219,10 +1190,10 @@ def comprehensive_analysis(results_df):
     print(scarcity_summary.round(3))
     
     # Create figure for comprehensive visualization
-    fig, axs = plt.subplots(2, 2, figsize=(18, 16))
+    fig, axs = plt.subplots(1, 2, figsize=(18, 8))
     
     # 1. 3D-like scatter plot: Ecological vs Economic vs Cooperation
-    scatter = axs[0, 0].scatter(
+    scatter = axs[0].scatter(
         results_df['ecological_impact'],
         results_df['economic_impact'],
         c=results_df['cooperation_percentage'],
@@ -1232,73 +1203,24 @@ def comprehensive_analysis(results_df):
     )
     
     # Add colorbar
-    cbar = plt.colorbar(scatter, ax=axs[0, 0])
+    cbar = plt.colorbar(scatter, ax=axs[0])
     cbar.set_label('Cooperation Percentage', fontsize=12)
     
     # Add reference diagonal line
-    xlim = axs[0, 0].get_xlim()
-    ylim = axs[0, 0].get_ylim()
-    axs[0, 0].plot([xlim[0], xlim[1]], [ylim[1], ylim[0]], 'k--', alpha=0.3, linewidth=1)
+    xlim = axs[0].get_xlim()
+    ylim = axs[0].get_ylim()
+    axs[0].plot([xlim[0], xlim[1]], [ylim[1], ylim[0]], 'k--', alpha=0.3, linewidth=1)
     
     # Improve appearance
-    axs[0, 0].set_title('Impact Metrics Colored by Cooperation', fontsize=15)
-    axs[0, 0].set_xlabel('Ecological Impact (lower is better)', fontsize=12)
-    axs[0, 0].set_ylabel('Economic Impact (higher is better)', fontsize=12)
-    axs[0, 0].grid(True, alpha=0.3)
+    axs[0].set_title('Impact Metrics Colored by Cooperation', fontsize=15)
+    axs[0].set_xlabel('Ecological Impact (lower is better)', fontsize=12)
+    axs[0].set_ylabel('Economic Impact (higher is better)', fontsize=12)
+    axs[0].grid(True, alpha=0.3)
     
-    # 2. Parallel coordinates plot for multi-dimensional analysis
-    from pandas.plotting import parallel_coordinates
+   
     
-    # Create a sample for parallel coordinates (too many lines is unreadable)
-    # Group by scenario and scarcity and take the mean
-    parallel_df = results_df.groupby(['scenario', 'scarcity']).agg({
-        'cooperation_percentage': 'mean',
-        'raw_ecological_impact': 'mean',
-        'ecological_impact': 'mean',
-        'economic_impact': 'mean',
-        'scarcity_color': 'first'
-    }).reset_index()
-    
-    # Normalize values for better visualization
-    for col in ['cooperation_percentage', 'raw_ecological_impact', 
-                'ecological_impact', 'economic_impact']:
-        min_val = parallel_df[col].min()
-        max_val = parallel_df[col].max()
-        # Avoid division by zero
-        if max_val > min_val:
-            parallel_df[col] = (parallel_df[col] - min_val) / (max_val - min_val)
-        else:
-            parallel_df[col] = 0.5  # Set to middle value if no variation
-    
-    # Add scenario-scarcity column for label
-    parallel_df['scenario_scarcity'] = parallel_df['scenario'].str.replace('.yml', '') + \
-                                       ' (' + parallel_df['scarcity'] + ')'
-    
-    # Make sure we have colors for all scarcity levels
-    colors = [COLOR_SCHEMES['scarcity'].get(s, '#333333') for s in parallel_df['scarcity']]
-    
-    # Create parallel coordinates plot
-    try:
-        parallel_coordinates(
-            parallel_df, 
-            'scarcity',
-            cols=['cooperation_percentage', 'raw_ecological_impact', 
-                  'ecological_impact', 'economic_impact'],
-            color=colors,
-            ax=axs[0, 1],
-            alpha=0.7
-        )
-        
-        axs[0, 1].set_title('Parallel Coordinates: Multi-Metric Comparison', fontsize=15)
-        axs[0, 1].set_ylabel('Normalized Value', fontsize=12)
-        axs[0, 1].grid(True, alpha=0.3)
-    except Exception as e:
-        print(f"Error in parallel coordinates plot: {e}")
-        axs[0, 1].text(0.5, 0.5, "Parallel coordinates plot error", 
-                      ha='center', va='center', fontsize=14)
-    
-    # 3. Raw Ecological Impact vs Forecast Parameters
-    ax3 = axs[1, 0]
+    # 2. Raw Ecological Impact vs Forecast Parameters
+    ax2 = axs[1]
     
     try:
         # Create pivot table for contour plot
@@ -1310,7 +1232,7 @@ def comprehensive_analysis(results_df):
         )
         
         # Create contour plot with filled contours
-        contour = ax3.contourf(
+        contour = ax2.contourf(
             pivot_raw_eco.columns, 
             pivot_raw_eco.index, 
             pivot_raw_eco.values,
@@ -1319,7 +1241,7 @@ def comprehensive_analysis(results_df):
         )
         
         # Add contour lines
-        ax3.contour(
+        ax2.contour(
             pivot_raw_eco.columns,
             pivot_raw_eco.index,
             pivot_raw_eco.values,
@@ -1330,52 +1252,19 @@ def comprehensive_analysis(results_df):
         )
         
         # Add colorbar
-        cbar = plt.colorbar(contour, ax=ax3)
+        cbar = plt.colorbar(contour, ax=ax2)
         cbar.set_label('Raw Ecological Impact (# of breaches)', fontsize=12)
         
         # Improve appearance
-        ax3.set_title('Raw Ecological Impact by Forecast Parameters', fontsize=15)
-        ax3.set_xlabel('Uncertainty', fontsize=12)
-        ax3.set_ylabel('Bias', fontsize=12)
+        ax2.set_title('Raw Ecological Impact by Forecast Parameters', fontsize=15)
+        ax2.set_xlabel('Uncertainty', fontsize=12)
+        ax2.set_ylabel('Bias', fontsize=12)
     except Exception as e:
         print(f"Error in contour plot: {e}")
-        ax3.text(0.5, 0.5, "Contour plot error", 
+        ax2.text(0.5, 0.5, "Contour plot error", 
                 ha='center', va='center', fontsize=14)
     
-    # 4. Final plot: Economic Impact vs Cooperation with regression line by scarcity
-    ax4 = axs[1, 1]
-    
-    # Create scatter plot with regression line for each scarcity level
-    for scarcity, group in results_df.groupby('scarcity'):
-        # Make sure the color lookup works
-        color = COLOR_SCHEMES['scarcity'].get(scarcity, '#333333')  # Default gray if not found
-        
-        try:
-            sns.regplot(
-                x='cooperation_percentage',
-                y='economic_impact',
-                data=group,
-                ax=ax4,
-                scatter_kws={'alpha': 0.6, 's': 50, 'color': color},
-                line_kws={'color': color, 'lw': 2},
-                label=f'Scarcity: {scarcity}'
-            )
-        except Exception as e:
-            print(f"Error in regression plot for {scarcity}: {e}")
-            # Still add the scatter points without regression line
-            ax4.scatter(
-                group['cooperation_percentage'],
-                group['economic_impact'],
-                alpha=0.6, s=50, color=color,
-                label=f'Scarcity: {scarcity} (no regression)'
-            )
-    
-    # Improve appearance
-    ax4.set_title('Economic Impact vs Cooperation by Scarcity Level', fontsize=15)
-    ax4.set_xlabel('Cooperation Percentage', fontsize=12)
-    ax4.set_ylabel('Economic Impact', fontsize=12)
-    ax4.grid(True, alpha=0.3)
-    ax4.legend()
+   
     
     plt.tight_layout()
     plt.show()
