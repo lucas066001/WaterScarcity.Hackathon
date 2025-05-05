@@ -191,7 +191,7 @@ def add_impact_plot_elements(ax, results_df=None):
 # Primary Analysis Functions
 # =====================================================================
 
-def analyze_scenario_impacts(results_df):
+def analyze_scenario_impacts(results_df, ylim=None, xlim=None):
     """
     Analyze impacts across different scenarios, stations, and scarcity levels
     with improved visualization aesthetics.
@@ -213,7 +213,9 @@ def analyze_scenario_impacts(results_df):
         category='scarcity',
         color_map=COLOR_SCHEMES['scarcity'],
         title='Trade-off Between Ecological and Economic Impacts by Scarcity Level',
-        point_size=60
+        point_size=60,
+        xlim=xlim,
+        ylim=ylim,
     )
     
     # 2. Analysis by station (river basin)
@@ -223,11 +225,17 @@ def analyze_scenario_impacts(results_df):
         color_map=COLOR_SCHEMES['station'],
         label_format=lambda s: f'Station {s}: {"Small" if s==1 else "Large"} Basin',
         title='Impact by River Basin Size',
-        point_size=60
+        point_size=60,
+        xlim=xlim,
+        ylim=ylim,
     )
     
     # 3. Analysis by scenario
-    create_impact_by_scenario_plot(results_df)
+    create_impact_by_scenario_plot(
+        results_df,
+        xlim=xlim,
+        ylim=ylim,
+    )
     
     # 4. Combined multi-dimensional analysis
     create_multidimensional_impact_plot(results_df)
@@ -589,7 +597,8 @@ def plot_feature_importance(input_df, output_df):
 
 def create_impact_by_category_plot(results_df, category, color_map, 
                                  title, point_size=60,
-                                 label_format=None):
+                                 label_format=None,
+                                 xlim=None, ylim=None):
     """
     Create a plot showing ecological vs economic impact by a categorical variable.
     
@@ -633,6 +642,12 @@ def create_impact_by_category_plot(results_df, category, color_map,
             edgecolor='white',
             linewidth=0.5
         )
+
+    # Set axis limits if provided
+    if xlim:
+        ax.set_xlim(xlim)
+    if ylim:
+        ax.set_ylim(ylim)
     
     # Add common elements
     add_impact_plot_elements(ax, results_df)
@@ -650,7 +665,7 @@ def create_impact_by_category_plot(results_df, category, color_map,
     plt.show()
 
 
-def create_impact_by_scenario_plot(results_df):
+def create_impact_by_scenario_plot(results_df, xlim=None, ylim=None):
     """
     Create a plot showing ecological vs economic impact by scenario.
     Uses different markers and colors for better differentiation.
@@ -686,11 +701,19 @@ def create_impact_by_scenario_plot(results_df):
             edgecolor='white',
             linewidth=0.5
         )
+
+    # Set axis limits if provided
+    if xlim:
+        ax.set_xlim(xlim)
+    if ylim:
+        ax.set_ylim(ylim)
+
     
     # Add common elements
     add_impact_plot_elements(ax, results_df)
     ax.set_title('Impact by Actor Scenario Configuration', fontsize=14)
     
+
     # Get handles and labels for sorted legend
     handles, labels = ax.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
@@ -930,7 +953,7 @@ def analyze_cooperation_patterns(results_df):
         y='economic_impact',
         hue='scarcity',
         palette=COLOR_SCHEMES['scarcity'],
-        size='uncertainty',
+        size='bias',
         sizes=(50, 200),
         ax=axs[0, 1],
         alpha=0.7
