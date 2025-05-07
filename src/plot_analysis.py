@@ -44,6 +44,7 @@ COLOR_SCHEMES = {
         'river_flow': '#33BBEE',   # Blue for river flow
         'eco_threshold': '#E31A1C', # Red for ecological threshold
         'remaining_water': '#33A02C', # Green for remaining water
+        'residual_water': '#FB9A99', # Light red for residual water
         
         # Water usage
         'h_water_used': '#1F78B4',  # Blue for water used
@@ -640,7 +641,8 @@ def plot_river_flow(ax: plt.Axes,
                    riverflows_mean: np.ndarray,
                    actors_demands: np.ndarray,
                    eco_threshold: float,
-                   ylim: Optional[Tuple[float, float]] = None) -> None:
+                   ylim: Optional[Tuple[float, float]] = None,
+                   xlim: Optional[Tuple[float, float]] = None) -> None:
     """
     Plot river flow over time with actor demands and ecological threshold.
     
@@ -701,13 +703,18 @@ def plot_river_flow(ax: plt.Axes,
     if ylim is not None:
         ax.set_ylim(ylim)
 
+    # Set x-axis limits if provided
+    if xlim is not None:
+        ax.set_xlim(xlim)
+
 
 def plot_remaining_water(ax: plt.Axes,
                         x_values: np.ndarray,
                         riverflows_mean: np.ndarray,
                         actors_demands: np.ndarray,
                         eco_threshold: float,
-                        ylim: Optional[Tuple[float, float]] = None) -> None:
+                        ylim: Optional[Tuple[float, float]] = None,
+                        xlim: Optional[Tuple[float, float]] = None) -> None:
     """
     Plot river flow and remaining water (after ecological threshold) over time.
     
@@ -725,6 +732,8 @@ def plot_remaining_water(ax: plt.Axes,
         Ecological threshold value
     ylim : Tuple[float, float], optional
         Y-axis limits
+    xlim : Tuple[float, float], optional
+        X-axis limits
     """
     # Plot river flow
     ax.plot(x_values, riverflows_mean, 
@@ -738,25 +747,24 @@ def plot_remaining_water(ax: plt.Axes,
             color=COLOR_SCHEMES['data']['remaining_water'], 
             linestyle='--', 
             linewidth=2,
-            label='Remaining Water')
+            label='River Flow - Ecological Threshold')
     
-    # Add actor demands as horizontal lines
-    for i, demand in enumerate(actors_demands):
-        color = COLOR_SCHEMES['actor'][i % len(COLOR_SCHEMES['actor'])]
-        ax.axhline(y=demand, 
-                  color=color, 
-                  linestyle='-.', 
-                  linewidth=1.5, 
-                  label=f'Actor {i + 1} demand')
     
     # Add total demand
     total_demand = sum(actors_demands)
-    ax.axhline(y=total_demand, 
+    ax.axhline(y=0, 
               color="grey", 
               linestyle='-', 
-              linewidth=2,
-              label='Total Demand')
-    
+              linewidth=2)
+
+    # Calculate and plot remaining water
+    residual_water = riverflows_mean - eco_threshold - total_demand
+    ax.plot(x_values, residual_water, 
+            color=COLOR_SCHEMES['data']['residual_water'], 
+            linestyle='--', 
+            linewidth=2,
+            label='River Flow - Ecological Threshold - Total Demand')
+
     # Apply styling
     apply_common_style(
         ax, 
@@ -769,16 +777,18 @@ def plot_remaining_water(ax: plt.Axes,
     if ylim is not None:
         ax.set_ylim(ylim)
     
-    # Add a zero reference line
-    ax.axhline(y=0, color='black', linestyle='-', alpha=0.3, linewidth=1)
+    # Set x-axis limits if provided
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    
     
     # Add shading for negative remaining water (ecological deficit)
     # Find where remaining water is negative
-    neg_indices = remaining_water < 0
+    neg_indices = residual_water < 0
     if np.any(neg_indices):
         ax.fill_between(
             x_values, 
-            remaining_water, 
+            residual_water, 
             0, 
             where=neg_indices, 
             color='red', 

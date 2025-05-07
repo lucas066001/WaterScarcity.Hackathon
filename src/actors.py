@@ -194,9 +194,12 @@ class ActorManager:
         else:
             riverflow = self.sim.real_predictions[self.sim.trn]
         
+        # Min uncertainty to make sure actors do not have the same prediction
+        min_uncertainty = .1
+
         # Calculate prediction with bias and uncertainty
-        variances = self.sim.actors_forecast_uncertainty + self.sim.global_forecast_uncertainty
-        water_ok = (
+        variances = self.sim.actors_forecast_uncertainty + self.sim.global_forecast_uncertainty + min_uncertainty
+        water_pred = (
             self.sim.actors_forecast_bias * riverflow +
             self.sim.global_forecast_bias * riverflow +
             riverflow -
@@ -205,7 +208,7 @@ class ActorManager:
         )
         
         # Ensure predictions are non-negative
-        return np.maximum(0, water_ok)
+        return np.maximum(0, water_pred)
     
     def update_storage(self) -> None:
         """
