@@ -300,3 +300,15 @@ def plotValuesAlong3PCa(pc_1, pc_2, pc_3, y, title="3 Pcs value correlation"):
     plt.ylabel("PC2")
     plt.title(title)
     plt.show()
+
+
+def plot_cumulative_variance_single(
+    cumulative_sums,
+    title="Cumulative sum of explained variance train set",
+):
+    plt.plot(cumulative_sums, marker="o")
+    plt.title(title)
+    plt.xlabel("Index")
+    plt.ylabel("Variance")
+    plt.grid(True)
+    plt.show()

@@ -104,3 +104,40 @@ def create_quantile_function(
         raise ValueError(f"Unsupported model type: {model}")
 
     return predict_quantile
+
+
+def find_index_exceeding_threshold(values, threshold=0.98) -> int:
+    """
+    Returns the index where values exceed given threshold.
+    (Array must be sorted in ascending order)
+
+    Parameters:
+        values (List[int]): A list of values.
+        threshold (int): The index of the model to use from the list.
+
+    Returns:
+        int: the index where values exceed the threshold.
+        -1 if no value exceeds the threshold.
+    """
+    for i, val in enumerate(values):
+        if val >= threshold:
+            return i
+    return -1
+
+
+def cumulative_sum(arr):
+    """
+    Returns an array that contains the cumulative sum of the input array.
+
+    Parameters:
+        arr (List[int]): A list of values.
+
+    Returns:
+        arr (List[int]): A list of cumulative values.
+    """
+    result = []
+    current_sum = 0
+    for num in arr:
+        current_sum += num
+        result.append(current_sum)
+    return result

@@ -45,9 +45,6 @@ class VotingRandomForestQuantileRegressor:
             X_train["y"] = y
         if "remove_station_identication" in variant_name:
             X_train = X_train.drop(columns=["station_code"])
-            X_train = X_train.drop(columns=["catchment"])
-            X_train = X_train.drop(columns=["latitude"])
-            X_train = X_train.drop(columns=["longitude"])
 
         if "france" in variant_name and not predict:
             X_train = X_train[X_train["north_hemisphere"] == 1]
@@ -66,12 +63,13 @@ class VotingRandomForestQuantileRegressor:
         for variant in self.variants:
             print(f"Training for variant {variant}")
             self.models[variant] = RandomForestQuantileRegressor(
-                n_estimators=60,
-                min_samples_split=5,
-                min_samples_leaf=15,
+                n_estimators=35,
+                min_samples_split=9,
+                min_samples_leaf=25,
                 max_features=None,
-                max_depth=20,
+                max_depth=50,
                 bootstrap=True,
+                random_state=42,
             )
             X_adj, y_adj = self.adjust_dataset(variant, X, y)
             print(f"Training on {X_adj.shape[0]} samples")
@@ -177,3 +175,67 @@ class SnowIndexComputeTransformer(BaseEstimator, TransformerMixin):
         X_transformed["snow_index"] = snow_index
 
         return X_transformed
+
+
+class SpecialistQrfModel:
+    def __init__(
+        self,
+        qrf_params: dict,
+        qrf_features: dict,
+        specialized_col="region_cluster",
+        number_of_weeks: int = 4,
+        number_of_clusters: int = 3,
+    ):
+        self.qrf_params = qrf_params
+        self.qrf_features = qrf_features
+        self.number_of_weeks = number_of_weeks
+        self.specialized_col = specialized_col
+        self.number_of_clusters = number_of_clusters
+        self.models = {}
+
+        print("Init QRF models")
+        for i in range(self.number_of_weeks):
+            self.models[i] = {}
+            for clust_index in range(self.number_of_clusters):
+                self.models[i][clust_index] = RandomForestQuantileRegressor(
+                    **self.qrf_params[clust_index]
+                )
+
+    def fit(self, X, y):
+        print("Fitting QRF models")
+        for i in range(self.number_of_weeks):
+            print(f"Fitting week {i}")
+            for clust_index in range(self.number_of_clusters):
+                print(f"Fitting cluster {clust_index}")
+                X["y_true"] = y[i]
+                X_train = X[X[self.specialized_col] == clust_index].copy(deep=True)
+                y_train = X_train["y_true"]
+                X.drop(columns=["y_true"])
+                X_train.drop(columns=["y_true"])
+                self.models[i][clust_index].fit(
+                    X_train[self.qrf_features[clust_index]], y_train
+                )
+
+    def predict(self, X, quantiles=[0.05, 0.5, 0.95]):
+        print("Predicting QRF models")
+        predictions = {}
+
+        for i in range(self.number_of_weeks):
+            print(f"Predicting week {i}")
+            preds = [None] * len(X)
+
+            for clust_index in range(self.number_of_clusters):
+                print(f"Predicting cluster {clust_index}")
+                X_pred = X[X[self.specialized_col] == clust_index].copy(deep=True)
+
+                cluster_preds = self.models[i][clust_index].predict(
+                    X_pred[self.qrf_features[clust_index]], quantiles=quantiles
+                )
+
+                # Repositionne les prédictions au bon endroit
+                for idx, pred in zip(X_pred.index, cluster_preds):
+                    preds[idx] = pred
+
+            predictions[i] = preds  # Liste alignée avec X.index
+
+        return predictions
