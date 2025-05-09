@@ -1,5 +1,6 @@
 import os
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def save_or_create(plt: plt.Figure, save_path: str):
@@ -56,3 +57,25 @@ def check_columns_exist(df, columns):
     """
     missing_columns = [col for col in columns if col not in df.columns]
     return missing_columns
+
+
+def custom_nll_scorer(y_true, y_pred):
+    if len(y_pred) == 0:
+        raise ValueError("y_pred is empty")
+
+    y_lower, y_pred, y_upper = y_pred[:, 0], y_pred[:, 1], y_pred[:, 2]
+
+    # Estimate sigma using the 95% CI approximation
+    sigma = (y_upper - y_lower) / 3.29
+
+    # Gaussian-like NLL (your formula)
+    nll = np.mean(np.log(sigma) + np.abs(y_true - y_pred) / (2 * np.abs(sigma)))
+
+    # Optionally: add coverage or interval size as penalty terms
+    coverage = np.mean((y_true >= y_lower) & (y_true <= y_upper))
+    interval_size = np.mean(y_upper - y_lower)
+
+    # Example: penalize low coverage and large intervals (you can adjust weights)
+    total_loss = nll + 2 * (0.9 - coverage) ** 2 + 0.1 * interval_size
+
+    return total_loss

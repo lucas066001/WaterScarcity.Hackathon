@@ -597,7 +597,9 @@ class XGBQuantileRegressor(BaseEstimator, RegressorMixin):
 
 
 class XGBQRFModel:
-    def __init__(self, xgb_params: dict, qrf_params: dict, quantiles: list = []):
+    def __init__(
+        self, xgb_params: dict, qrf_params: dict, quantiles: list = [], random_state=42
+    ):
         self.xgb_params = xgb_params
         self.qrf_params = qrf_params
         self.quantiles = quantiles
@@ -663,7 +665,6 @@ class XGBQRF_SimpleModel:
                     ],
                     axis=1,
                 )
-        print("Fitting XGB models")
         self.models["XGB"].fit(X, y, eval_set=eval_set, verbose=False)
         self.models["QRF"].fit(X, y)
 
@@ -729,43 +730,62 @@ class XGBQRF_SimpleModel:
 
 
 class Ensemble:
-    def __init__(self, xgb_params, qrf_params, quantiles):
-        self.xgb_params = xgb_params
-        self.qrf_params = qrf_params
+    def __init__(
+        self,
+        params: dict = {},
+        quantiles: list[float] = [0.05, 0.5, 0.95],
+        seed: int = 42,
+    ):
+        self.params = params
+
+        if len(self.params.keys()) == 0:
+            print("No parameters provided for the models using default ones.")
+            self.xgb_params = {
+                i: {
+                    "n_estimators": 300,
+                    "max_depth": 5,
+                    "learning_rate": 0.1,
+                }
+                for i in range(3)
+            }
+
+            self.qrf_params = {
+                i: {
+                    "n_estimators": 30,
+                    "max_depth": 10,
+                }
+                for i in range(3)
+            }
+        if len(self.params.keys()) == 3:
+            self.xgb_params = {
+                k: {
+                    "n_estimators": v["n_estimators"],
+                    "max_depth": v["max_depth"],
+                    "learning_rate": v["learning_rate"],
+                    "subsample": v["subsample"],
+                }
+                for k, v in self.params.items()
+            }
+
+            self.qrf_params = {
+                k: {
+                    "n_estimators": v["n_estimators_qrf"],
+                    "max_depth": v["max_depth_qrf"],
+                    "min_samples_split": v["min_samples_split"],
+                    "min_samples_leaf": v["min_samples_leaf"],
+                    "criterion": v["criterion"],
+                }
+                for k, v in self.params.items()
+            }
+
         self.models = {
-            0: XGBQRFModel(
-                xgb_params={
-                    "n_estimators": 300,
-                    "max_depth": 5,
-                    "learning_rate": 0.1,
-                },
-                qrf_params={
-                    "n_estimators": 30,
-                    "max_depth": 10,
-                },
+            k: XGBQRF_SimpleModel(
+                xgb_params=self.xgb_params[k],
+                qrf_params=self.qrf_params[k],
                 quantiles=quantiles,
-            ),
-            1: XGBQRFModel(
-                xgb_params={
-                    "n_estimators": 300,
-                    "max_depth": 5,
-                    "learning_rate": 0.1,
-                },
-                qrf_params={
-                    "n_estimators": 30,
-                    "max_depth": 10,
-                },
-                quantiles=quantiles,
-            ),
-            2: XGBQRFModel(
-                xgb_params={
-                    "n_estimators": 500,
-                    "max_depth": 5,
-                    "learning_rate": 0.05,
-                },
-                qrf_params=self.qrf_params,
-                quantiles=quantiles,
-            ),
+                SEED=seed,
+            )
+            for k in range(3)
         }
 
     def fit(self, X, y, eval_set: list = [], X_qrf=None, y_qrf=None):
@@ -785,8 +805,8 @@ class Ensemble:
                     x_brazil,
                     y_brazil,
                     eval_set=eval_set,
-                    X_qrf=x_brazil_qrf,
-                    y_qrf=y_brazil_qrf,
+                    # X_qrf=x_brazil_qrf,
+                    # y_qrf=y_brazil_qrf,
                 )
             elif i == 1:
                 x_north = X[X["north_hemisphere"] == 1]
@@ -800,11 +820,11 @@ class Ensemble:
                     x_north,
                     y_north,
                     eval_set=eval_set,
-                    X_qrf=x_north_qrf,
-                    y_qrf=y_north_qrf,
+                    # X_qrf=x_north_qrf,
+                    # y_qrf=y_north_qrf,
                 )
             else:
-                self.models[i].fit(X, y, eval_set=eval_set, X_qrf=X_qrf, y_qrf=y_qrf)
+                self.models[i].fit(X, y, eval_set=eval_set)
 
     def predict(self, X):
         predictions = []
@@ -812,20 +832,16 @@ class Ensemble:
             pred = self.models[i].predict(X)
             predictions.append(pred)
 
-        # Stack predictions: shape = (n_samples, n_models, n_quantiles)
-        predictions = np.stack(predictions, axis=1)  # (N, 3, Q)
-
-        # Initialize weights: shape = (n_samples, n_models)
+        predictions = np.stack(predictions, axis=1)
         weights = np.ones((X.shape[0], len(self.models)))
 
-        # Dynamic weights based on 'north_hemisphere'
         north = X["north_hemisphere"].values  # shape (n_samples,)
 
-        weights[:, 0] = np.where(north == 0, 0.6, 0.0)  # Brazil model
-        weights[:, 1] = np.where(north == 1, 0.6, 0.0)  # North model
-        weights[:, 2] = 0.4  # General model
+        # Dynamic weights based on 'north_hemisphere'
+        weights[:, 0] = np.where(north == 0, 0.5, 0.0)
+        weights[:, 1] = np.where(north == 1, 0.5, 0.0)
+        weights[:, 2] = 0.5  # General model
 
-        # Normalize weights
         weights /= weights.sum(axis=1, keepdims=True)  # (N, 3)
 
         # Multiply weights with predictions
