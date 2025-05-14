@@ -236,6 +236,11 @@ class WaterAllocator:
             DCR=self.sim.DCR
         )
 
+        # make sure incentives are between threshold values
+        incentives = np.clip(incentives,
+                             - self.sim.incentive_threshold,
+                             self.sim.incentive_threshold)
+
         reward = reward - np.where(actions, self.sim.cost_of_negotiation, 0) - incentives
 
         return reward, incentives

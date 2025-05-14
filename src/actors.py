@@ -68,6 +68,7 @@ class ActorManager:
                 setattr(self.sim, key, np.array(value_list))
 
         self._scale_actors_demands()
+        self._scale_incentive_thresholds()
         self._scale_learning_rate()
         self._initialize_history_containers()
     
@@ -117,7 +118,17 @@ class ActorManager:
             
         factor = negotiation_cost_factors[self.sim.negotiation_difficulty]
         self.sim.cost_of_negotiation = scaling * factor
-    
+
+    def _scale_incentive_thresholds(self) -> None:
+        """
+        Scale incentive thresholds based on demands and water values.
+        
+        """
+        max_benefit = np.sum(self.sim.actors_demands * self.sim.actors_values)
+        max_total_benefit = max_benefit * self.sim.total_turns
+
+        self.sim.incentive_threshold = max_total_benefit * 10
+
     def _scale_learning_rate(self) -> None:
         """
         Scale the learning rate for each actor.
