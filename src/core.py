@@ -248,7 +248,7 @@ class WaterManagementSimulation:
         """
         return self.ecology_manager.calculate_final_scores()
     
-    def _default_compute_quota(self, 
+    def _default_compute_quota(self,
                             crisis_level: int,
                             actors_priority: np.ndarray,
                             avg_pump: np.ndarray,
