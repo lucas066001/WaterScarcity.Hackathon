@@ -345,8 +345,8 @@ def get_h_data(simulation: wms,
     return mean, q_up, q_down
 
 
-def get_w_data(simulation: wms, 
-               data_type: str, 
+def get_w_data(simulation: wms,
+               data_type: str,
                mode: str = "mean") -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Extract and process w_* data from simulation.
@@ -429,9 +429,9 @@ def plot_data(ax: plt.Axes,
     
     # Apply styling
     apply_common_style(
-        ax, 
-        title=title, 
-        xlabel='Turn (Week)', 
+        ax,
+        title=title,
+        xlabel='Turn (Week)',
         ylabel=label
     )
     
@@ -489,9 +489,9 @@ def plot_actor_data(ax: plt.Axes,
     
     # Apply styling
     apply_common_style(
-        ax, 
-        title=f"{title} by Actor", 
-        xlabel='Turn (Week)', 
+        ax,
+        title=f"{title} by Actor",
+        xlabel='Turn (Week)',
         ylabel=ylabel,
         legend_title="Actors"
     )
@@ -552,9 +552,9 @@ def plot_actor_data_by_type(ax: plt.Axes,
     
     # Apply styling
     apply_common_style(
-        ax, 
-        title=f"{title} by Actor Type", 
-        xlabel='Turn (Week)', 
+        ax,
+        title=f"{title} by Actor Type",
+        xlabel='Turn (Week)',
         ylabel=ylabel,
         legend_title="Actor Types"
     )
@@ -625,9 +625,9 @@ def compare_data(ax: plt.Axes,
     
     # Apply styling
     apply_common_style(
-        ax, 
-        title=title, 
-        xlabel=xlabel, 
+        ax,
+        title=title,
+        xlabel=xlabel,
         ylabel=ylabel
     )
     
@@ -636,163 +636,126 @@ def compare_data(ax: plt.Axes,
         ax.set_ylim(ylim)
 
 
-def plot_river_flow(ax: plt.Axes,
-                   x_values: np.ndarray,
-                   riverflows_mean: np.ndarray,
-                   actors_demands: np.ndarray,
-                   eco_threshold: float,
-                   ylim: Optional[Tuple[float, float]] = None,
-                   xlim: Optional[Tuple[float, float]] = None) -> None:
+
+def plot_river_flow(
+    ax: plt.Axes,
+    weeks: np.ndarray,
+    simulation: wms,
+    ylim: tuple = None,
+    xlim: tuple = None
+) -> None:
     """
-    Plot river flow over time with actor demands and ecological threshold.
-    
-    Parameters:
-    -----------
-    ax : plt.Axes
-        Matplotlib axes to plot on
-    x_values : np.ndarray
-        X-axis values (typically turn numbers)
-    riverflows_mean : np.ndarray
-        Mean river flow values
-    actors_demands : np.ndarray
-        Water demand for each actor
-    eco_threshold : float
-        Ecological threshold value
-    ylim : Tuple[float, float], optional
-        Y-axis limits
+    Top panel: river flow, each actor’s weekly demand, and the DOE/DCR thresholds.
+
+    Parameters
+    ----------
+    ax
+        Matplotlib axes on which to draw.
+    weeks
+        1D array of week indices.
+    simulation : wms
+        Simulation object
+    ylim
+        Optional (ymin, ymax).
+    xlim
+        Optional (xmin, xmax).
     """
-    # Plot river flow
-    ax.plot(x_values, riverflows_mean, 
-            label='River Flow', 
-            color=COLOR_SCHEMES['data']['river_flow'], 
-            linewidth=2)
-    
-    # Add actor demands as horizontal lines
-    for i, demand in enumerate(actors_demands):
-        color = COLOR_SCHEMES['actor'][i % len(COLOR_SCHEMES['actor'])]
-        ax.axhline(y=demand, 
-                  color=color, 
-                  linestyle='-.', 
-                  linewidth=1.5, 
-                  label=f'Actor {i + 1} demand')
-    
-    # Add ecological threshold
-    ax.axhline(y=eco_threshold, 
-              color=COLOR_SCHEMES['data']['eco_threshold'], 
-              linestyle='--', 
-              linewidth=2,
-              label='Ecological Threshold')
-    
-    # Add total demand
-    total_demand = sum(actors_demands)
-    ax.axhline(y=total_demand, 
-              color="grey", 
-              linestyle='-', 
-              linewidth=2,
-              label='Total Demand')
-    
-    # Apply styling
-    apply_common_style(
-        ax, 
-        title='River Flow Over Time', 
-        xlabel='Turn (Week)', 
-        ylabel='River Flow (units)'
-    )
-    
-    # Set y-axis limits if provided
-    if ylim is not None:
-        ax.set_ylim(ylim)
 
-    # Set x-axis limits if provided
-    if xlim is not None:
-        ax.set_xlim(xlim)
+    DOE = simulation.DOE
+    DCR = simulation.DCR
+    actor_labels = simulation.actors_name
+    actor_demands = simulation.actors_demands
+    actor_colors = COLOR_SCHEMES['actor']
+    river_flow = simulation.real_riverflows[weeks]
+    # pronounced y=0 axis
+    ax.axhline(0, color="black", linewidth=2)
 
+    # river flow
+    ax.plot(weeks, river_flow, label="River flow", lw=2)
 
-def plot_remaining_water(ax: plt.Axes,
-                        x_values: np.ndarray,
-                        riverflows_mean: np.ndarray,
-                        actors_demands: np.ndarray,
-                        eco_threshold: float,
-                        ylim: Optional[Tuple[float, float]] = None,
-                        xlim: Optional[Tuple[float, float]] = None) -> None:
-    """
-    Plot river flow and remaining water (after ecological threshold) over time.
-    
-    Parameters:
-    -----------
-    ax : plt.Axes
-        Matplotlib axes to plot on
-    x_values : np.ndarray
-        X-axis values (typically turn numbers)
-    riverflows_mean : np.ndarray
-        Mean river flow values
-    actors_demands : np.ndarray
-        Water demand for each actor
-    eco_threshold : float
-        Ecological threshold value
-    ylim : Tuple[float, float], optional
-        Y-axis limits
-    xlim : Tuple[float, float], optional
-        X-axis limits
-    """
-    # Plot river flow
-    ax.plot(x_values, riverflows_mean, 
-            label='River Flow', 
-            color=COLOR_SCHEMES['data']['river_flow'], 
-            linewidth=2)
-    
-    # Calculate and plot remaining water
-    remaining_water = riverflows_mean - eco_threshold
-    ax.plot(x_values, remaining_water, 
-            color=COLOR_SCHEMES['data']['remaining_water'], 
-            linestyle='--', 
-            linewidth=2,
-            label='River Flow - Ecological Threshold')
-    
-    
-    # Add total demand
-    total_demand = sum(actors_demands)
-    ax.axhline(y=0, 
-              color="grey", 
-              linestyle='-', 
-              linewidth=2)
-
-    # Calculate and plot remaining water
-    residual_water = riverflows_mean - eco_threshold - total_demand
-    ax.plot(x_values, residual_water, 
-            color=COLOR_SCHEMES['data']['residual_water'], 
-            linestyle='--', 
-            linewidth=2,
-            label='River Flow - Ecological Threshold - Total Demand')
-
-    # Apply styling
-    apply_common_style(
-        ax, 
-        title='Available Water Over Time', 
-        xlabel='Turn (Week)', 
-        ylabel='Water Volume (units)'
-    )
-    
-    # Set y-axis limits if provided
-    if ylim is not None:
-        ax.set_ylim(ylim)
-    
-    # Set x-axis limits if provided
-    if xlim is not None:
-        ax.set_xlim(xlim)
-    
-    
-    # Add shading for negative remaining water (ecological deficit)
-    # Find where remaining water is negative
-    neg_indices = residual_water < 0
-    if np.any(neg_indices):
-        ax.fill_between(
-            x_values, 
-            residual_water, 
-            0, 
-            where=neg_indices, 
-            color='red', 
-            alpha=0.2, 
-            interpolate=True,
-            label='Ecological Deficit'
+    # actor demands
+    for i, (lbl, d) in enumerate(zip(actor_labels, actor_demands)):
+        ax.hlines(
+            d,
+            weeks[0], weeks[-1],
+            color=actor_colors[i % len(actor_colors)],
+            ls="--", lw=1.8,
+            label=f"Demand – {lbl}"
         )
+
+    # DOE & DCR
+    ax.hlines(DOE, weeks[0], weeks[-1], color="C3", ls="-.", lw=2, label="DOE")
+    ax.hlines(DCR, weeks[0], weeks[-1], color="C4", ls=":", lw=2, label="DCR")
+
+    ax.set_title("River Flow & Actor Demands")
+    ax.set_xlabel("Week")
+    ax.set_ylabel("Flow (units)")
+    if ylim:
+        ax.set_ylim(*ylim)
+    if xlim:
+        ax.set_xlim(*xlim)
+    ax.legend(ncol=2, fontsize="small", loc="upper right")
+    ax.grid(True, alpha=0.3)
+
+
+def plot_remaining_water(
+    ax: plt.Axes,
+    weeks: np.ndarray,
+    simulation: wms,
+    ylim: tuple = None,
+    xlim: tuple = None
+) -> None:
+    """
+    Bottom panel: water remaining after ecological thresholds and after meeting all demands.
+
+    Parameters
+    ----------
+    ax
+        Matplotlib axes on which to draw.
+    weeks
+        1D array of week indices.
+    simulation : wms
+        Simulation
+    ylim
+        Optional (ymin, ymax).
+    xlim
+        Optional (xmin, xmax).
+    """
+    DOE = simulation.DOE
+    DCR = simulation.DCR
+    actor_labels = simulation.actors_name
+    actor_demands = simulation.actors_demands
+    actor_colors = COLOR_SCHEMES['actor']
+    river_flow = simulation.real_riverflows[weeks]
+    # pronounced y=0 axis
+    ax.axhline(0, color="black", linewidth=2)
+
+    # surplus above DOE & DCR
+    surplus_DOE = river_flow - DOE
+    surplus_DCR = river_flow - DCR
+    total_demand = actor_demands.sum()
+    residual = river_flow - DOE - total_demand
+
+    ax.plot(weeks, river_flow, label="Flow", lw=2)
+    ax.plot(weeks, surplus_DOE, label="Flow – DOE", lw=2, ls="--")
+    ax.plot(weeks, surplus_DCR, label="Flow – DCR", lw=2, ls="--")
+    ax.plot(weeks, residual, label="Residual after demands", lw=2, ls=":")
+
+    # highlight ecological deficit
+    deficit = residual < 0
+    if deficit.any():
+        ax.fill_between(
+            weeks, residual, 0,
+            where=deficit, color="red", alpha=0.2,
+            label="Ecological deficit"
+        )
+
+    ax.set_title("Available Water after Thresholds & Demands")
+    ax.set_xlabel("Week")
+    ax.set_ylabel("Volume (units)")
+    if ylim:
+        ax.set_ylim(*ylim)
+    if xlim:
+        ax.set_xlim(*xlim)
+    ax.legend(ncol=2, fontsize="small", loc="upper right")
+    ax.grid(True, alpha=0.3)

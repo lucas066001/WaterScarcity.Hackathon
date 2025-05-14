@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Tuple
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 
-
+from src import ecology
 
 # Set consistent styling for all plots
 plt.style.use('seaborn-v0_8-whitegrid')
@@ -34,8 +34,12 @@ COLOR_SCHEMES = {
         "high": "#B22222"     # Firebrick - Danger, severe conditions
     },
     'station': {
-        1: "#4682B4",  # Steel Blue - Small river basin
-        2: "#8A2BE2"   # Blue Violet - Large river basin
+        1: "#4682B4",  # Steel Blue - La Vézère
+        2: "#8A2BE2"   # Blue Violet - Le Tarn
+    },
+    'priority_ok': {
+        0: "#2E8B57",  # Sea Green - Satisfy priority
+        1: "#FF6347"   # Tomato - Do not satisfy priority
     },
     'scenario': {
         "0.yml": {"color": "#1E90FF", "marker": "o", "name": "Base 0"},           # Dodger Blue
@@ -156,20 +160,20 @@ def add_impact_plot_elements(ax, results_df=None):
         
         # Add labels for best/worst regions
         ax.text(
-            xlim[0] + 0.10 * x_range, 
-            ylim[1] - 0.10 * y_range, 
-            "Best", 
-            fontsize=10, 
-            ha='center', 
+            xlim[0] + 0.10 * x_range,
+            ylim[1] - 0.10 * y_range,
+            "Best",
+            fontsize=10,
+            ha='center',
             va='center',
             bbox=dict(facecolor='white', alpha=0.7, edgecolor='green', boxstyle='round,pad=0.3')
         )
         ax.text(
-            xlim[1] - 0.10 * x_range, 
-            ylim[0] + 0.10 * y_range, 
-            "Worst", 
-            fontsize=10, 
-            ha='center', 
+            xlim[1] - 0.10 * x_range,
+            ylim[0] + 0.10 * y_range,
+            "Worst",
+            fontsize=10,
+            ha='center',
             va='center',
             bbox=dict(facecolor='white', alpha=0.7, edgecolor='red', boxstyle='round,pad=0.3')
         )
@@ -191,7 +195,8 @@ def add_impact_plot_elements(ax, results_df=None):
 # Primary Analysis Functions
 # =====================================================================
 
-def analyze_scenario_impacts(results_df, ylim=None, xlim=None):
+
+def analyze_scenario_impacts(results_df, ylim=None, xlim=None, is_scalled=False):
     """
     Analyze impacts across different scenarios, stations, and scarcity levels
     with improved visualization aesthetics.
@@ -201,7 +206,12 @@ def analyze_scenario_impacts(results_df, ylim=None, xlim=None):
     results_df : pd.DataFrame
         DataFrame containing simulation results with ecological_impact, economic_impact,
         and scenario metadata
-        
+    ylim : tuple, optional
+        Y-axis limits for the plots
+    xlim : tuple, optional
+        X-axis limits for the plots
+    is_scalled : bool, optional
+        If True, use scaled impact values; otherwise, use raw values
     Returns:
     --------
     None
@@ -209,25 +219,40 @@ def analyze_scenario_impacts(results_df, ylim=None, xlim=None):
     """
     # 1. Analysis by scarcity level
     create_impact_by_category_plot(
-        results_df, 
+        results_df,
         category='scarcity',
         color_map=COLOR_SCHEMES['scarcity'],
         title='Trade-off Between Ecological and Economic Impacts by Scarcity Level',
         point_size=60,
         xlim=xlim,
         ylim=ylim,
+        is_scalled=is_scalled,
     )
     
     # 2. Analysis by station (river basin)
     create_impact_by_category_plot(
-        results_df, 
+        results_df,
         category='station',
         color_map=COLOR_SCHEMES['station'],
-        label_format=lambda s: f'Station {s}: {"Small" if s==1 else "Large"} Basin',
+        label_format=lambda s: f'Station : {"La Vézère" if s==1 else "Le Tarn"}',
         title='Impact by River Basin Size',
         point_size=60,
         xlim=xlim,
         ylim=ylim,
+        is_scalled=is_scalled,
+    )
+
+    # 3. Analysis by priority satisfaction
+    create_impact_by_category_plot(
+        results_df,
+        category='priority_ok',
+        color_map=COLOR_SCHEMES['priority_ok'],
+        label_format=lambda s: f'Statisfaction Criteria : {"ok" if s==1.0 else "not ok"}',
+        title='Trade-off Between Ecological and Economic Impacts by satisfaction level',
+        point_size=60,
+        xlim=xlim,
+        ylim=ylim,
+        is_scalled=is_scalled,
     )
     
     # 3. Analysis by scenario
@@ -235,16 +260,17 @@ def analyze_scenario_impacts(results_df, ylim=None, xlim=None):
         results_df,
         xlim=xlim,
         ylim=ylim,
+        is_scalled=is_scalled,
     )
     
     # 4. Combined multi-dimensional analysis
-    create_multidimensional_impact_plot(results_df)
+    create_multidimensional_impact_plot(results_df, is_scalled=is_scalled)
 
 
-def analyze_forecast_effects(results_df):
+def analyze_forecast_effects(results_df, is_scalled=False):
     """
     Analyze the effects of forecast bias and uncertainty on simulation outcomes.
-    Creates matrix of plots showing relationships between bias, uncertainty, 
+    Creates matrix of plots showing relationships between bias, uncertainty,
     and impact measures.
     
     Parameters:
@@ -259,29 +285,36 @@ def analyze_forecast_effects(results_df):
     """
     # Extract base scenarios (without variants) for clearer analysis
     base_df = results_df[results_df['scenario'].isin(['0.yml', '1.yml'])]
-    
+
+    if is_scalled:
+        ecological_impact = 'ecological_impact'
+        economic_impact = 'economic_impact'
+    else:
+        ecological_impact = 'raw_ecological_impact'
+        economic_impact = 'raw_economic_impact'
+
     # Create forecast analysis plots (2x2 grid)
     fig, axs = plt.subplots(2, 2, figsize=(18, 14))
-    
+
     # Define variables and labels for each subplot
     plot_configs = [
-        {'x': 'bias', 'y': 'economic_impact', 'size_var': 'uncertainty', 'abs_size': False, 'ax': axs[0, 0]},
-        {'x': 'bias', 'y': 'ecological_impact', 'size_var': 'uncertainty', 'abs_size': False, 'ax': axs[0, 1]},
-        {'x': 'uncertainty', 'y': 'economic_impact', 'size_var': 'bias', 'abs_size': True, 'ax': axs[1, 0]},
-        {'x': 'uncertainty', 'y': 'ecological_impact', 'size_var': 'bias', 'abs_size': True, 'ax': axs[1, 1]}
+        {'x': 'bias', 'y': economic_impact, 'size_var': 'uncertainty', 'abs_size': False, 'ax': axs[0, 0]},
+        {'x': 'bias', 'y': ecological_impact, 'size_var': 'uncertainty', 'abs_size': False, 'ax': axs[0, 1]},
+        {'x': 'uncertainty', 'y': economic_impact, 'size_var': 'bias', 'abs_size': True, 'ax': axs[1, 0]},
+        {'x': 'uncertainty', 'y': ecological_impact, 'size_var': 'bias', 'abs_size': True, 'ax': axs[1, 1]}
     ]
-    
+
     # Create each subplot
     for config in plot_configs:
         create_forecast_effect_plot(base_df, **config)
-    
+
     # Create a common legend for all subplots instead of individual legends
     scarcity_handles = []
     for scarcity, color in COLOR_SCHEMES['scarcity'].items():
-        handle = Line2D([0], [0], marker='o', color=color, markersize=10, 
+        handle = Line2D([0], [0], marker='o', color=color, markersize=10,
                         linestyle='None', label=f'Scarcity: {scarcity}')
         scarcity_handles.append(handle)
-    
+
     # Create size legend for uncertainty
     size_handles = []
     sizes = [0.1, 0.3, 0.5]
@@ -289,10 +322,10 @@ def analyze_forecast_effects(results_df):
     scale_range = size_scale[1] - size_scale[0]
     for size in sizes:
         marker_size = size_scale[0] + scale_range * (size / 0.5)
-        handle = Line2D([0], [0], marker='o', color='gray', markersize=np.sqrt(marker_size/3), 
+        handle = Line2D([0], [0], marker='o', color='gray', markersize=np.sqrt(marker_size/3),
                         linestyle='None', label=f'{size:.1f}')
         size_handles.append(handle)
-    
+
     # Add the legends to the figure, not to any specific axes
     fig.legend(
         handles=scarcity_handles,
@@ -305,15 +338,15 @@ def analyze_forecast_effects(results_df):
         edgecolor='gray',
         title='Scarcity Level'
     )
-    
+
     plt.tight_layout(rect=[0, 0.05, 1, 1])  # Make room for the legend at the bottom
     plt.show()
-    
+
     # Create visualization of impact distributions using violin plots
     fig, axs = plt.subplots(1, 2, figsize=(18, 8))
-    
+
     # Create enhanced violin plots for better distribution visualization
-    for i, impact in enumerate(['ecological_impact', 'economic_impact']):
+    for i, impact in enumerate([ecological_impact, economic_impact]):
         # Create violin plot
         sns.violinplot(
             data=results_df,
@@ -324,7 +357,7 @@ def analyze_forecast_effects(results_df):
             inner='quartile',  # Show quartiles inside violin
             density_norm='width',     # Scale violins to have same width
         )
-        
+
         # Add individual data points using stripplot
         sns.stripplot(
             data=results_df,
@@ -337,23 +370,23 @@ def analyze_forecast_effects(results_df):
             color='black',
             zorder=1  # Ensure points are above violin plot
         )
-        
+
         # Improve appearance
         axs[i].set_title(f'{impact.replace("_", " ").title()} Distribution by Scarcity Level', fontsize=15)
         axs[i].set_xlabel('Scarcity Level', fontsize=12)
         axs[i].set_ylabel(impact.replace("_", " ").title(), fontsize=12)
-        
+
         # Add mean markers
         mean_values = results_df.groupby('scarcity')[impact].mean()
         for j, scarcity in enumerate(sorted(results_df['scarcity'].unique())):
             axs[i].plot(j, mean_values[scarcity], 'o', color='white', markersize=8, zorder=3)
             axs[i].plot(j, mean_values[scarcity], 'x', color='black', markersize=6, zorder=4)
-    
+
     plt.tight_layout()
     plt.show()
 
 
-def correlation_analysis(results_df):
+def correlation_analysis(results_df, is_scalled=False):
     """
     Perform targeted correlation analysis focusing on relationships between 
     input parameters and simulation outcomes.
@@ -362,14 +395,24 @@ def correlation_analysis(results_df):
     -----------
     results_df : pd.DataFrame
         DataFrame containing simulation results
+    is_scalled : bool, optional
+        If True, use scaled impact values; otherwise, use raw values
         
     Returns:
     --------
     None
         Displays correlation visualizations
     """
+
+    if is_scalled:
+        ecological_impact = 'ecological_impact'
+        economic_impact = 'economic_impact'
+    else:
+        ecological_impact = 'raw_ecological_impact'
+        economic_impact = 'raw_economic_impact'
+
     # Separate input and output variables
-    output_vars = ['ecological_impact', 'economic_impact']
+    output_vars = [ecological_impact, economic_impact]
     input_numeric_vars = ['bias', 'uncertainty']
     input_categorical_vars = ['scarcity', 'scenario', 'station']
     
@@ -595,10 +638,11 @@ def plot_feature_importance(input_df, output_df):
 # Helper Functions for Plot Creation
 # =====================================================================
 
-def create_impact_by_category_plot(results_df, category, color_map, 
+def create_impact_by_category_plot(results_df, category, color_map,
                                  title, point_size=60,
                                  label_format=None,
-                                 xlim=None, ylim=None):
+                                 xlim=None, ylim=None,
+                                 is_scalled=False):
     """
     Create a plot showing ecological vs economic impact by a categorical variable.
     
@@ -623,18 +667,24 @@ def create_impact_by_category_plot(results_df, category, color_map,
         Displays the created plot
     """
     fig, ax = plt.subplots(figsize=(10, 8))
-    
+    if is_scalled:
+        ecological_impact = 'ecological_impact'
+        economic_impact = 'economic_impact'
+    else:
+        ecological_impact = 'raw_ecological_impact'
+        economic_impact = 'raw_economic_impact'
+   
     for value, group in results_df.groupby(category):
         # Format label if function provided
         if label_format:
             label = label_format(value)
         else:
             label = f'{category.title()}: {value}'
-            
+           
         # Plot group
         ax.scatter(
-            group['ecological_impact'], 
-            group['economic_impact'], 
+            group[ecological_impact],
+            group[economic_impact],
             c=color_map[value],
             label=label,
             alpha=0.75,
@@ -655,7 +705,7 @@ def create_impact_by_category_plot(results_df, category, color_map,
     
     # Add legend
     create_styled_legend(
-        ax, 
+        ax,
         handles=ax.get_legend_handles_labels()[0],
         labels=ax.get_legend_handles_labels()[1],
         title=category.title()
@@ -665,7 +715,7 @@ def create_impact_by_category_plot(results_df, category, color_map,
     plt.show()
 
 
-def create_impact_by_scenario_plot(results_df, xlim=None, ylim=None):
+def create_impact_by_scenario_plot(results_df, xlim=None, ylim=None, is_scalled=False):
     """
     Create a plot showing ecological vs economic impact by scenario.
     Uses different markers and colors for better differentiation.
@@ -681,6 +731,13 @@ def create_impact_by_scenario_plot(results_df, xlim=None, ylim=None):
         Displays the created plot
     """
     fig, ax = plt.subplots(figsize=(10, 8))
+
+    if is_scalled:
+        ecological_impact = 'ecological_impact'
+        economic_impact = 'economic_impact'
+    else:
+        ecological_impact = 'raw_ecological_impact'
+        economic_impact = 'raw_economic_impact'
     
     # Get scenario settings
     scenario_settings = COLOR_SCHEMES['scenario']
@@ -691,8 +748,8 @@ def create_impact_by_scenario_plot(results_df, xlim=None, ylim=None):
         settings = scenario_settings[scenario]
         
         ax.scatter(
-            group['ecological_impact'], 
-            group['economic_impact'], 
+            group[ecological_impact],
+            group[economic_impact],
             c=settings["color"],
             marker=settings["marker"],
             label=settings["name"],
@@ -733,7 +790,7 @@ def create_impact_by_scenario_plot(results_df, xlim=None, ylim=None):
     plt.show()
 
 
-def create_multidimensional_impact_plot(results_df):
+def create_multidimensional_impact_plot(results_df, is_scalled=False):
     """
     Create a plot showing ecological vs economic impact with
     multiple dimensions encoded (scenario, station, scarcity).
@@ -749,6 +806,13 @@ def create_multidimensional_impact_plot(results_df):
         Displays the created plot
     """
     fig, ax = plt.subplots(figsize=(10, 8))
+
+    if is_scalled:
+        ecological_impact = 'ecological_impact'
+        economic_impact = 'economic_impact'
+    else:
+        ecological_impact = 'raw_ecological_impact'
+        economic_impact = 'raw_economic_impact'
     
     # Get color schemes
     scenario_settings = COLOR_SCHEMES['scenario']
@@ -767,8 +831,8 @@ def create_multidimensional_impact_plot(results_df):
                 label = f"{settings['name']} ({scarcity})" if scarcity == "medium" else None
                 
                 ax.scatter(
-                    subset['ecological_impact'], 
-                    subset['economic_impact'], 
+                    subset[ecological_impact],
+                    subset[economic_impact],
                     c=scarcity_colors[scarcity],
                     marker=settings["marker"],
                     label=label,
@@ -801,15 +865,15 @@ def create_multidimensional_impact_plot(results_df):
     
     # Edge color legends (scenario type)
     type_elements = [
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='w', markersize=10, 
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='w', markersize=10,
                markeredgecolor=scenario_settings["0.yml"]["color"], markeredgewidth=2, label='Type 0'),
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='w', markersize=10, 
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='w', markersize=10,
                markeredgecolor=scenario_settings["1.yml"]["color"], markeredgewidth=2, label='Type 1')
     ]
     
     # Add legends at different positions
     first_legend = create_styled_legend(
-        ax, 
+        ax,
         handles=scenario_elements,
         labels=[e.get_label() for e in scenario_elements],
         title="Scenario Variant",
@@ -818,7 +882,7 @@ def create_multidimensional_impact_plot(results_df):
     ax.add_artist(first_legend)
     
     second_legend = create_styled_legend(
-        ax, 
+        ax,
         handles=scarcity_elements,
         labels=[e.get_label() for e in scarcity_elements],
         title="Scarcity Level",
@@ -827,7 +891,7 @@ def create_multidimensional_impact_plot(results_df):
     ax.add_artist(second_legend)
     
     third_legend = create_styled_legend(
-        ax, 
+        ax,
         handles=type_elements,
         labels=[e.get_label() for e in type_elements],
         title="Scenario Type",
@@ -897,7 +961,7 @@ def create_forecast_effect_plot(df, x, y, ax, size_var=None, abs_size=False):
     ax.set_ylabel(y.replace("_", " ").title(), fontsize=12)
 
 
-def analyze_cooperation_patterns(results_df):
+def analyze_cooperation_patterns(results_df, is_scalled=False):
     """
     Analyze cooperation patterns across different scenarios, scarcity levels,
     and forecast parameters.
@@ -915,6 +979,13 @@ def analyze_cooperation_patterns(results_df):
     """
     # Create main figure for analysis
     fig, axs = plt.subplots(2, 2, figsize=(18, 16))
+
+    if is_scalled:
+        ecological_impact = 'ecological_impact'
+        economic_impact = 'economic_impact'
+    else:
+        ecological_impact = 'raw_ecological_impact'
+        economic_impact = 'raw_economic_impact'
     
     # 1. Cooperation by scarcity level - violin plot
     sns.violinplot(
@@ -950,7 +1021,7 @@ def analyze_cooperation_patterns(results_df):
     sns.scatterplot(
         data=results_df,
         x='cooperation_percentage',
-        y='economic_impact',
+        y=economic_impact,
         hue='scarcity',
         palette=COLOR_SCHEMES['scarcity'],
         size='bias',
@@ -968,7 +1039,7 @@ def analyze_cooperation_patterns(results_df):
     sns.scatterplot(
         data=results_df,
         x='cooperation_percentage',
-        y='raw_ecological_impact',
+        y=ecological_impact,
         hue='scarcity',
         palette=COLOR_SCHEMES['scarcity'],
         size='uncertainty',
@@ -1010,9 +1081,9 @@ def analyze_cooperation_patterns(results_df):
     plt.show()
 
 
-def analyze_raw_ecological_impact(results_df):
+def analyze_raw_impact(results_df):
     """
-    Analyze raw (unscaled) ecological impact across different scenarios, 
+    Analyze raw (unscaled) ecological impact across different scenarios,
     stations, and scarcity levels.
     
     Parameters:
@@ -1026,105 +1097,45 @@ def analyze_raw_ecological_impact(results_df):
         Displays visualizations showing raw ecological impact patterns
     """
     # Create figure with 2 rows, 2 columns
-    fig, axs = plt.subplots(2, 2, figsize=(18, 16))
+    fig, axs = plt.subplots(1, 2, figsize=(18, 6))
     
-    # 1. Raw ecological impact by scarcity level
-    sns.boxplot(
-        data=results_df,
-        x='scarcity',
-        y='raw_ecological_impact',
-        palette=COLOR_SCHEMES['scarcity'],
-        ax=axs[0, 0]
-    )
-    
-    # Add individual data points
-    sns.stripplot(
-        data=results_df,
-        x='scarcity',
-        y='raw_ecological_impact',
-        ax=axs[0, 0],
-        size=4,
-        alpha=0.6,
-        jitter=True,
-        color='black',
-        zorder=1
-    )
-    
-    axs[0, 0].set_title('Raw Ecological Impact by Scarcity Level', fontsize=15)
-    axs[0, 0].set_xlabel('Scarcity Level', fontsize=12)
-    axs[0, 0].set_ylabel('Raw Ecological Impact (# of breaches)', fontsize=12)
-    
-    # 2. Raw ecological impact by station
-    # Create a custom palette that handles both integer and string station IDs
-    station_palette = {}
-    for station_id in results_df['station'].unique():
-        # Convert to integer for lookup in COLOR_SCHEMES if it's a string
-        lookup_id = int(str(station_id)) if isinstance(station_id, str) else station_id
-        station_palette[str(station_id)] = COLOR_SCHEMES['station'][lookup_id]
-        print(station_id)
-    print(station_palette)
-    sns.boxplot(
-        data=results_df,
-        x='station',
-        y='raw_ecological_impact',
-        palette=station_palette,
-        ax=axs[0, 1]
-    )
-    
-    # Add individual data points
-    sns.stripplot(
-        data=results_df,
-        x='station',
-        y='raw_ecological_impact',
-        ax=axs[0, 1],
-        size=4,
-        alpha=0.6,
-        jitter=True,
-        color='black',
-        zorder=1
-    )
-    
-    axs[0, 1].set_title('Raw Ecological Impact by River Basin Size', fontsize=15)
-    axs[0, 1].set_xlabel('Station (1: Small Basin, 2: Large Basin)', fontsize=12)
-    axs[0, 1].set_ylabel('Raw Ecological Impact (# of breaches)', fontsize=12)
-    
-    # 3. Raw ecological impact vs bias, colored by uncertainty
-    sns.scatterplot(
-        data=results_df,
-        x='bias',
-        y='raw_ecological_impact',
-        hue='uncertainty',
-        palette='viridis',
-        size='cooperation_percentage',
-        sizes=(50, 200),
-        ax=axs[1, 0],
-        alpha=0.7
-    )
-    
-    axs[1, 0].set_title('Effect of Forecast Bias on Raw Ecological Impact', fontsize=15)
-    axs[1, 0].set_xlabel('Forecast Bias', fontsize=12)
-    axs[1, 0].set_ylabel('Raw Ecological Impact (# of breaches)', fontsize=12)
-    axs[1, 0].grid(True, alpha=0.3)
-    
-    # 4. Raw ecological impact vs Economic impact colored by cooperation
-    scatter = axs[1, 1].scatter(
-        results_df['raw_ecological_impact'],
+    # 4. Raw Economic impact vs Economic impact colored by cooperation
+    scatter = axs[0].scatter(
+        results_df['raw_economic_impact'],
         results_df['economic_impact'],
         c=results_df['cooperation_percentage'],
         cmap='viridis',
         s=80,
         alpha=0.7
     )
-    
     # Add colorbar
-    cbar = plt.colorbar(scatter, ax=axs[1, 1])
+    cbar = plt.colorbar(scatter, ax=axs[0])
     cbar.set_label('Cooperation Percentage', fontsize=12)
     
     # Add labels
-    axs[1, 1].set_xlabel('Raw Ecological Impact (# of breaches)', fontsize=12)
-    axs[1, 1].set_ylabel('Economic Impact', fontsize=12)
-    axs[1, 1].set_title('Trade-off: Raw Ecological vs Economic Impact', fontsize=15)
-    axs[1, 1].grid(True, alpha=0.3)
+    axs[0].set_xlabel('Raw Economic Impact', fontsize=12)
+    axs[0].set_ylabel('Economic Impact', fontsize=12)
+    axs[0].set_title('Trade-off: Raw Economic vs Economic Impact', fontsize=15)
+    axs[0].grid(True, alpha=0.3)
+    
+    # 5. Raw ecological impact vs ecological impact colored by cooperation
+    scatter = axs[1].scatter(
+        results_df['raw_ecological_impact'],
+        results_df['ecological_impact'],
+        c=results_df['cooperation_percentage'],
+        cmap='viridis',
+        s=80,
+        alpha=0.7
+    )
+    # Add colorbar
+    cbar = plt.colorbar(scatter, ax=axs[1])
+    cbar.set_label('Cooperation Percentage', fontsize=12)
+    
+    # Add labels
+    axs[1].set_xlabel('Raw Ecological Impact (# of breaches)', fontsize=12)
+    axs[1].set_ylabel('Economic Impact', fontsize=12)
+    axs[1].set_title('Trade-off: Raw Ecological vs Ecological Impact', fontsize=15)
+    axs[1].grid(True, alpha=0.3)
     
     plt.tight_layout()
     plt.show()
@@ -1150,7 +1161,7 @@ def analyze_cooperation_by_forecast_params(results_df):
     # 1. Cooperation vs Bias by uncertainty
     # Create pivot table for heatmap
     pivot_bias = results_df.pivot_table(
-        index='bias', 
+        index='bias',
         columns='uncertainty',
         values='cooperation_percentage',
         aggfunc='mean'
@@ -1174,7 +1185,7 @@ def analyze_cooperation_by_forecast_params(results_df):
     plt.show()
 
 
-def comprehensive_analysis(results_df):
+def comprehensive_analysis(results_df, is_scalled=False):
     """
     Perform a comprehensive analysis of all key metrics and their relationships.
     
@@ -1188,17 +1199,24 @@ def comprehensive_analysis(results_df):
     None
         Displays comprehensive visualizations and summary statistics
     """
+
+    if is_scalled:
+        ecological_impact = 'ecological_impact'
+        economic_impact = 'economic_impact'
+    else:
+        ecological_impact = 'raw_ecological_impact'
+        economic_impact = 'raw_economic_impact'
     # Print overall summary statistics
     print("=== Summary Statistics ===")
     print("\nOverall Metrics:")
     print(f"Average Cooperation: {results_df['cooperation_percentage'].mean():.2f}")
     print(f"Average Raw Ecological Impact: {results_df['raw_ecological_impact'].mean():.1f} breaches")
     print(f"Average Scaled Ecological Impact: {results_df['ecological_impact'].mean():.3f}")
-    print(f"Average Economic Impact: {results_df['economic_impact'].mean():.3f}")
+    print(f"Average Economic Impact: {results_df[economic_impact].mean():.3f}")
     
     print("\nCorrelation Matrix:")
-    corr_matrix = results_df[['cooperation_percentage', 'raw_ecological_impact', 
-                             'ecological_impact', 'economic_impact', 
+    corr_matrix = results_df[['cooperation_percentage', 'raw_ecological_impact',
+                             'ecological_impact', 'economic_impact', 'raw_economic_impact',
                              'bias', 'uncertainty']].corr()
     print(corr_matrix.round(2))
     
@@ -1208,7 +1226,8 @@ def comprehensive_analysis(results_df):
         'cooperation_percentage': 'mean',
         'raw_ecological_impact': 'mean',
         'ecological_impact': 'mean',
-        'economic_impact': 'mean'
+        'raw_economic_impact': 'mean',
+        'economic_impact': 'mean',
     })
     print(scarcity_summary.round(3))
     
@@ -1217,8 +1236,8 @@ def comprehensive_analysis(results_df):
     
     # 1. 3D-like scatter plot: Ecological vs Economic vs Cooperation
     scatter = axs[0].scatter(
-        results_df['ecological_impact'],
-        results_df['economic_impact'],
+        results_df[ecological_impact],
+        results_df[economic_impact],
         c=results_df['cooperation_percentage'],
         s=80,
         cmap='viridis',
@@ -1256,8 +1275,8 @@ def comprehensive_analysis(results_df):
         
         # Create contour plot with filled contours
         contour = ax2.contourf(
-            pivot_raw_eco.columns, 
-            pivot_raw_eco.index, 
+            pivot_raw_eco.columns,
+            pivot_raw_eco.index,
             pivot_raw_eco.values,
             levels=15,
             cmap='RdYlGn_r'  # Red for high impact (bad), green for low impact (good)
@@ -1284,7 +1303,7 @@ def comprehensive_analysis(results_df):
         ax2.set_ylabel('Bias', fontsize=12)
     except Exception as e:
         print(f"Error in contour plot: {e}")
-        ax2.text(0.5, 0.5, "Contour plot error", 
+        ax2.text(0.5, 0.5, "Contour plot error",
                 ha='center', va='center', fontsize=14)
     
    
