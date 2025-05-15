@@ -1,5 +1,6 @@
 # Ignore the data folder and all its subdirectories and files
 data/
+search-results/
 
 # Ignore the dataset folder and all its subdirectories and files
 dataset/
