@@ -597,7 +597,9 @@ class XGBQuantileRegressor(BaseEstimator, RegressorMixin):
 
 
 class XGBQRFModel:
-    def __init__(self, xgb_params: dict, qrf_params: dict, quantiles: list = []):
+    def __init__(
+        self, xgb_params: dict, qrf_params: dict, quantiles: list = [], random_state=42
+    ):
         self.xgb_params = xgb_params
         self.qrf_params = qrf_params
         self.quantiles = quantiles
@@ -636,30 +638,72 @@ class XGBQRFModel:
         )
 
 
+from xgboost import XGBRegressor
+
+
 class XGBQRF_SimpleModel:
-    def __init__(self, xgb_params: dict, qrf_params: dict, quantiles: list = []):
+    def __init__(
+        self, xgb_params: dict, qrf_params: dict, quantiles: list = [], SEED: int = 42
+    ):
         self.xgb_params = xgb_params
         self.qrf_params = qrf_params
         self.quantiles = quantiles
         self.models = {
-            "XGB": XGBRegressor(**self.xgb_params),
-            "QRF": RandomForestQuantileRegressor(**self.qrf_params),
+            "XGB": XGBRegressor(**self.xgb_params, random_state=SEED),
+            "QRF": RandomForestQuantileRegressor(**self.qrf_params, random_state=SEED),
         }
+        self.predictions = None
 
-    def fit(self, X, y, eval_set: list = []):
-        print("Fitting XGB models")
+    def fit(self, X, y, eval_set: list = [], prev_week_models=[]):
+        week = len(prev_week_models)
+        if len(prev_week_models) > 0:
+            for model in prev_week_models:
+                X = pd.concat(
+                    [
+                        X.reset_index(drop=True),
+                        model.predictions.reset_index(drop=True),
+                    ],
+                    axis=1,
+                )
         self.models["XGB"].fit(X, y, eval_set=eval_set, verbose=False)
         print("Fitting QRF model")
         self.models["QRF"].fit(X, y)
 
-    def predict(self, X):
+        self.save_predictions(X, week)
 
+    def save_predictions(self, X, week, predictions=None):
+        if predictions is None:
+            predictions = self.predict(X)
+
+        predictions = pd.DataFrame(
+            {
+                f"predicted_water_flow_week{week}_lower": predictions[:, 0],
+                f"predicted_water_flow_week{week}_median": predictions[:, 1],
+                f"predicted_water_flow_week{week}_upper": predictions[:, 2],
+            }
+        )
+
+        predictions.set_index(X.index)
+        self.predictions = predictions
+
+    def predict(self, X, prev_week_models=[]):
+        week = len(prev_week_models)
+        if len(prev_week_models) > 0:
+            for model in prev_week_models:
+                X = pd.concat(
+                    [
+                        X.reset_index(drop=True),
+                        model.predictions.reset_index(drop=True),
+                    ],
+                    axis=1,
+                )
         xgb_predictions = self.models["XGB"].predict(X)
 
         qrf_predictions = self.models["QRF"].predict(X, quantiles=self.quantiles)
 
         qrf_median = qrf_predictions[:, 1]
 
+        # Threshold on xgb_predictions
         xgb_predictions[xgb_predictions < 100] = qrf_median[xgb_predictions < 100]
 
         qrf_lower_gap = (
@@ -670,10 +714,145 @@ class XGBQRF_SimpleModel:
         qrf_upper_gap = (qrf_predictions[:, 2] - qrf_median) / qrf_median  # à ajouter
         upper_bound = xgb_predictions * (1 + qrf_upper_gap)
 
-        return np.stack(
+        predictions = np.stack(
             [lower_bound, xgb_predictions, upper_bound],
             axis=1,
         )
+
+        self.save_predictions(X, week, predictions)
+
+        return predictions
+
+    def predict_separate(self, X):
+        predictions = dict()
+        predictions["XGB"] = self.models["XGB"].predict(X)
+        predictions["QRF"] = self.models["QRF"].predict(X, quantiles=self.quantiles)
+        return predictions
+
+
+class Ensemble:
+    def __init__(
+        self,
+        params: dict = {},
+        quantiles: list[float] = [0.05, 0.5, 0.95],
+        seed: int = 42,
+    ):
+        self.params = params
+
+        if len(self.params.keys()) == 0:
+            print("No parameters provided for the models using default ones.")
+            self.xgb_params = {
+                i: {
+                    "n_estimators": 300,
+                    "max_depth": 5,
+                    "learning_rate": 0.1,
+                }
+                for i in range(3)
+            }
+
+            self.qrf_params = {
+                i: {
+                    "n_estimators": 30,
+                    "max_depth": 10,
+                }
+                for i in range(3)
+            }
+        if len(self.params.keys()) == 3:
+            self.xgb_params = {
+                k: {
+                    "n_estimators": v["n_estimators"],
+                    "max_depth": v["max_depth"],
+                    "learning_rate": v["learning_rate"],
+                    "subsample": v["subsample"],
+                }
+                for k, v in self.params.items()
+            }
+
+            self.qrf_params = {
+                k: {
+                    "n_estimators": v["n_estimators_qrf"],
+                    "max_depth": v["max_depth_qrf"],
+                    "min_samples_split": v["min_samples_split"],
+                    "min_samples_leaf": v["min_samples_leaf"],
+                    "criterion": v["criterion"],
+                }
+                for k, v in self.params.items()
+            }
+
+        self.models = {
+            k: XGBQRF_SimpleModel(
+                xgb_params=self.xgb_params[k],
+                qrf_params=self.qrf_params[k],
+                quantiles=quantiles,
+                SEED=seed,
+            )
+            for k in range(3)
+        }
+
+    def fit(self, X, y, eval_set: list = [], X_qrf=None, y_qrf=None):
+        for i in self.models.keys():
+            print(f"Training model {i}")
+            if i == 0:
+                # Brazil dedicated
+                x_brazil = X[X["north_hemisphere"] == 0]
+                y_brazil = y[X["north_hemisphere"] == 0]
+                x_brazil_qrf = None
+                y_brazil_qrf = None
+                if not X_qrf is None and not y_qrf is None:
+                    x_brazil_qrf = X_qrf[X_qrf["north_hemisphere"] == 0]
+                    y_brazil_qrf = y_qrf[X_qrf["north_hemisphere"] == 0]
+                # brazil_eval =
+                self.models[i].fit(
+                    x_brazil,
+                    y_brazil,
+                    eval_set=eval_set,
+                    # X_qrf=x_brazil_qrf,
+                    # y_qrf=y_brazil_qrf,
+                )
+            elif i == 1:
+                x_north = X[X["north_hemisphere"] == 1]
+                y_north = y[X["north_hemisphere"] == 1]
+                x_north_qrf = None
+                y_north_qrf = None
+                if not X_qrf is None and not y_qrf is None:
+                    x_north_qrf = X_qrf[X_qrf["north_hemisphere"] == 1]
+                    y_north_qrf = y_qrf[X_qrf["north_hemisphere"] == 1]
+                self.models[i].fit(
+                    x_north,
+                    y_north,
+                    eval_set=eval_set,
+                    # X_qrf=x_north_qrf,
+                    # y_qrf=y_north_qrf,
+                )
+            else:
+                self.models[i].fit(X, y, eval_set=eval_set)
+
+    def predict(self, X):
+        predictions = []
+        for i in self.models.keys():
+            pred = self.models[i].predict(X)
+            predictions.append(pred)
+
+        predictions = np.stack(predictions, axis=1)
+        weights = np.ones((X.shape[0], len(self.models)))
+
+        north = X["north_hemisphere"].values  # shape (n_samples,)
+
+        # Dynamic weights based on 'north_hemisphere'
+        weights[:, 0] = np.where(north == 0, 0.5, 0.0)
+        weights[:, 1] = np.where(north == 1, 0.5, 0.0)
+        weights[:, 2] = 0.5  # General model
+
+        weights /= weights.sum(axis=1, keepdims=True)  # (N, 3)
+
+        # Multiply weights with predictions
+        # predictions: (N, 3, Q) * weights[:, :, None] → (N, 3, Q)
+        weighted_predictions = predictions * weights[:, :, None]
+
+        # Sum over models: (N, Q)
+        final_prediction = np.sum(weighted_predictions, axis=1)
+
+        return final_prediction
 
 
 class ChainedQrfModel:
