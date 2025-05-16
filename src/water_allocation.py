@@ -77,7 +77,7 @@ class WaterAllocator:
         return np.maximum(self.sim.actors_demands - storage, 0)
 
 
-    def _allocate_normal(self, coop: np.ndarray, capa: np.ndarray, minimal_needs: np.ndarray, 
+    def _allocate_normal(self, coop: np.ndarray, capa: np.ndarray, minimal_needs: np.ndarray,
                         riverflow_predictions: np.ndarray, actions: np.ndarray) -> np.ndarray:
         """Allocate water during normal conditions."""
         # Initialize with maximum capacity
@@ -129,7 +129,7 @@ class WaterAllocator:
         return coop_demand * self.sim.nb_actors / len(coop)
 
 
-    def _allocate_by_priority(self, conso: np.ndarray, actions: np.ndarray, 
+    def _allocate_by_priority(self, conso: np.ndarray, actions: np.ndarray,
                             minimal_needs: np.ndarray, ava_water: float) -> np.ndarray:
         """Allocate water based on actor priorities."""
         # Create masks for different priority levels
@@ -183,12 +183,12 @@ class WaterAllocator:
         
         return conso
     
-    def compute_cost(self, actions: np.ndarray, riverflow: np.ndarray, water_pump: np.ndarray, 
+    def compute_cost(self, actions: np.ndarray, riverflow: np.ndarray, water_pump: np.ndarray,
                     water_used_by_actor: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Compute rewards and incentives for each actor.
         
-        Calculates the economic rewards for each actor based on water usage, 
+        Calculates the economic rewards for each actor based on water usage,
         cooperation status, and environmental impacts.
         
         Args:
@@ -235,6 +235,11 @@ class WaterAllocator:
             DOE=self.sim.DOE,
             DCR=self.sim.DCR
         )
+
+        # make sure incentives are between threshold values
+        incentives = np.clip(incentives,
+                             - self.sim.incentive_threshold,
+                             self.sim.incentive_threshold)
 
         reward = reward - np.where(actions, self.sim.cost_of_negotiation, 0) - incentives
 
@@ -290,21 +295,21 @@ class WaterAllocator:
         """
         # Extract parameters
         riverflow = self.sim.w_riverflows[self.sim.it, self.sim.trn].copy()
-        demands = self.sim.actors_demands  
-        values = self.sim.actors_values    
+        demands = self.sim.actors_demands
+        values = self.sim.actors_values
         priority = self.sim.actors_priority
-        
+
         def greedy_allocation(available: float,
                               demands: np.ndarray,
                               order: np.ndarray) -> np.ndarray:
             """
             Perform greedy allocation of water resources.
-            
+
             Args:
                 available: Amount of water available for allocation.
                 demands: Array of water demands for each actor.
                 order: Array of actor indices in allocation order.
-                
+
             Returns:
                 Array of water allocations for each actor.
             """
@@ -316,7 +321,7 @@ class WaterAllocator:
                 if available <= 0:
                     break
             return allocation
-        
+
         # Allocate by economic value (maximum economic benefit)
         order_max = np.argsort(-values)  # descending order (highest value first)
         alloc_max = greedy_allocation(riverflow, demands, order_max)
@@ -331,5 +336,8 @@ class WaterAllocator:
         # Calculate actual economic impacts achieved
         incentives = self.sim.h_policies[:, self.sim.it, self.sim.trn]
         water_benefits = self.sim.h_water_used[:, self.sim.it, self.sim.trn] * values
-        water_benefits -= np.where(incentives > 0, incentives, 0)  # Subtract fines
+        # Subtract fines, 1% administration cost for subsidies
+        water_benefits -= np.where(incentives > 0,
+                                   incentives,
+                                   - incentives / 100.0)
         self.sim.h_econ_impacts[:, self.sim.it, self.sim.trn] = water_benefits

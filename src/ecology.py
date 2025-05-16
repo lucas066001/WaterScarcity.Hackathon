@@ -190,13 +190,16 @@ class EcologyManager:
                 print("Violation: medium-priority actors must outperform low-priority actors by factor", factor)
                 print("High satisfaction:", high_sat, "Medium satisfaction:", med_sat, "Low satisfaction:", low_sat)
             # Return scores with penalties
-            return [ecol_breach + 2.0, economic_impact -2.0]
+            print("Penalty applied for medium-priority actors not outperforming low-priority actors.")
+            return [ecol_breach, economic_impact, 0.0]
         if len(high_idxs) > 0 and len(medium_idxs) > 0 and high_sat <= med_sat * factor:
             if hasattr(self.sim, 'verbose') and self.sim.verbose:
                 print("Violation: medium-priority actors must outperform low-priority actors by factor", factor)
                 print("High satisfaction:", high_sat, "Medium satisfaction:", med_sat, "Low satisfaction:", low_sat)
             # Return scores with penalties
-            return [ecol_breach + 2.0, economic_impact -2.0]
+
+            print("Penalty applied for high-priority actors not outperforming medium-priority actors.")
+            return [ecol_breach, economic_impact, 0.0]
         else:
             # No violation, return normal scores
-            return [ecol_breach, economic_impact]
+            return [ecol_breach, economic_impact, 1.0]

@@ -58,7 +58,8 @@ class WaterManagementSimulation:
         'actors_reput_cost',
         'actors_baseline_income_factor',
         'actors_name',
-        'verbose'
+        'verbose',
+        'incentive_threshold'
     }
 
     def __init__(self, **args):
@@ -188,8 +189,8 @@ class WaterManagementSimulation:
         # 2. Water predictions and crisis determination
         riverflow_predictions = self.actor_manager.get_water_predictions()
         self.water_allocator.compute_avg_pump()
-        
-        crisis_level = self.ecology_manager.compute_crisis()
+
+        self.ecology_manager.compute_crisis()
         self.h_quota[:, self.it, self.trn] = self.compute_actor_quota(
             crisis_level=int(self.w_crisis[self.it, self.trn]),
             actors_priority=self.actors_priority,
@@ -248,7 +249,7 @@ class WaterManagementSimulation:
         """
         return self.ecology_manager.calculate_final_scores()
     
-    def _default_compute_quota(self, 
+    def _default_compute_quota(self,
                             crisis_level: int,
                             actors_priority: np.ndarray,
                             avg_pump: np.ndarray,
@@ -301,7 +302,7 @@ class WaterManagementSimulation:
             quota: Current water quotas for each actor.
             DOE: Ecological optimal flow threshold.
             DCR: Crisis flow threshold.
-            
+
         Returns:
             Array of incentives for each actor.
         """

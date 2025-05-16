@@ -16,7 +16,7 @@ def run_all_scenarios(
     Run simulations across all defined scenarios and return a DataFrame with results.
     """
     # Scenario parameters
-    scenarios = ["0.yml", "1.yml", "0-v.yml", "1-v.yml", 
+    scenarios = ["0.yml", "1.yml", "0-v.yml", "1-v.yml",
                 "0-b.yml", "1-b.yml", "0-c.yml", "1-c.yml"]
     scarcity_levels = ["low", "medium", "high"]
     exploration_biases = [0.0, 0.25, -0.25, 0.5, -0.5]  
@@ -30,15 +30,17 @@ def run_all_scenarios(
     all_scarcities = []
     all_scenarios = []
     all_stations = []
+    all_priority_ok = []  # Priority satisfaction OK
     
     # New data collection lists
     all_raw_ecological_impact = []  # Raw unscaled ecological impact
+    all_raw_economic_impact = []  # Raw unscaled ecological impact
     all_cooperation_percentage = []  # Average percentage of cooperators
     
     # Station definitions
     stations = {
-        1: {'station': 6125320, 'DOE': 0.1, 'DCR': 0.05},  # Small river basin
-        2: {'station': 6124501, 'DOE': 7, 'DCR': 3.5}      # Large river basin
+        1: {'station': 6125320, 'DOE': 0.1, 'DCR': 0.05},  # Le Tarn
+        2: {'station': 6124501, 'DOE': 7, 'DCR': 3.5}      # La Vézère
     }
     
     print("Starting simulations across all scenarios...")
@@ -73,18 +75,20 @@ def run_all_scenarios(
                         simulation = wms.WaterManagementSimulation(**params)
                         
                         # Set custom policies
-                        simulation.incentive_policy = MethodType(custom_incentive_policy, simulation)
-                        simulation.compute_actor_quota = MethodType(custom_quota, simulation)
+                        simulation.incentive_policy = MethodType(
+                            custom_incentive_policy, simulation)
+                        simulation.compute_actor_quota = MethodType(
+                            custom_quota, simulation)
                         
                         # Run simulation
                         simulation.run_simulation()
                         
                         # Get scores
-                        ecological_impact, economic_impact = simulation.get_final_scores_scaled()
+                        ecological_impact, economic_impact, priority_ok = simulation.get_final_scores_scaled()
                         
                         # Calculate raw ecological impact (total number of breaches)
                         raw_ecol_impact = np.sum(simulation.w_ecol_impact > 0)
-                        
+                        raw_econ_impact = np.sum(simulation.h_econ_impacts)
                         # Calculate average percentage of cooperators
                         # Average over all iterations and turns
                         avg_coop = np.mean(simulation.h_actions)
@@ -97,9 +101,11 @@ def run_all_scenarios(
                         all_scarcities.append(scarcity)
                         all_scenarios.append(scenario)
                         all_stations.append(station)
+                        all_priority_ok.append(priority_ok)
                         
                         # Store new metrics
                         all_raw_ecological_impact.append(float(raw_ecol_impact))
+                        all_raw_economic_impact.append(float(raw_econ_impact))
                         all_cooperation_percentage.append(float(avg_coop))
                         
                         print(f"Scenario: {scenario}, Station: {station}, Scarcity: {scarcity}, " +
@@ -109,29 +115,31 @@ def run_all_scenarios(
     
     # Create DataFrame with results
     results_df = pd.DataFrame({
-        "ecological_impact": all_ecological_impact, 
-        "economic_impact": all_economic_impact, 
+        "ecological_impact": all_ecological_impact,
+        "economic_impact": all_economic_impact,
         "bias": all_biases,
         "uncertainty": all_uncertainties,
         "scarcity": all_scarcities,
         "scenario": all_scenarios,
         "station": all_stations,
         "raw_ecological_impact": all_raw_ecological_impact,
-        "cooperation_percentage": all_cooperation_percentage
+        "raw_economic_impact": all_raw_economic_impact,
+        "cooperation_percentage": all_cooperation_percentage,
+        "priority_ok": all_priority_ok
     })
     
     # Add color mappings
     scarcity_colors = {"low": "yellow", "medium": "orange", "high": "red"}
     scenario_colors = {
-        "0.yml": "blue", "1.yml": "red", 
+        "0.yml": "blue", "1.yml": "red",
         "0-v.yml": "purple", "1-v.yml": "orange",
-        "0-b.yml": "blue", "1-b.yml": "red", 
+        "0-b.yml": "blue", "1-b.yml": "red",
         "0-c.yml": "blue", "1-c.yml": "red"
     }
     scenario_names = {
-        "0.yml": "0", "1.yml": "1", 
+        "0.yml": "0", "1.yml": "1",
         "0-v.yml": "0-v", "1-v.yml": "1-v",
-        "0-b.yml": "0-b", "1-b.yml": "1-b", 
+        "0-b.yml": "0-b", "1-b.yml": "1-b",
         "0-c.yml": "0-c", "1-c.yml": "1-c"
     }
     station_colors = {"1": "green", "2": "blue"}
