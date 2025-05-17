@@ -839,9 +839,9 @@ class Ensemble:
         north = X["north_hemisphere"].values  # shape (n_samples,)
 
         # Dynamic weights based on 'north_hemisphere'
-        weights[:, 0] = np.where(north == 0, 0.5, 0.0)
-        weights[:, 1] = np.where(north == 1, 0.5, 0.0)
-        weights[:, 2] = 0.5  # General model
+        weights[:, 0] = np.where(north == 0, 0.6, 0.0)
+        weights[:, 1] = np.where(north == 1, 0.6, 0.0)
+        weights[:, 2] = 0.4  # General model
 
         weights /= weights.sum(axis=1, keepdims=True)  # (N, 3)
 
