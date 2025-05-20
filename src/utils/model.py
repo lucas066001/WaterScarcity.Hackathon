@@ -323,6 +323,7 @@ def compare_models_per_station(
     title: str = "Model Evaluation",
     save: bool = False,
     display: bool = True,
+    return_df: bool = False,
 ):
     """
     Evaluate the performance of one or multiple models at the station level.
@@ -380,9 +381,13 @@ def compare_models_per_station(
 
     station_metrics_df = pd.concat(all_station_metrics, ignore_index=True)
 
-    generate_boxplots(
-        station_metrics_df, column_to_display, prefix, title, save, display
-    )
+    if display:
+        generate_boxplots(
+            station_metrics_df, column_to_display, prefix, title, save, display
+        )
+
+    if return_df:
+        return station_metrics_df
 
 
 def load_models_auto(mn: str, dir: str = "../../models/") -> List[any]:
@@ -997,3 +1002,63 @@ class SpecialistQrfModel:
             predictions[i] = preds
 
         return predictions
+
+
+from sklearn.base import BaseEstimator
+
+
+class XGBQRFWrapper(BaseEstimator):
+    def __init__(
+        self,
+        quantiles=[0.05, 0.5, 0.95],
+        n_estimators=100,
+        max_depth=3,
+        learning_rate=0.1,
+        subsample=1.0,
+        n_estimators_qrf=100,
+        min_samples_split=2,
+        min_samples_leaf=1,
+        criterion="squared_error",
+        max_depth_qrf=5,
+        random_state=42,
+    ):
+        self.quantiles = quantiles
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.learning_rate = learning_rate
+        self.subsample = subsample
+        self.n_estimators_qrf = n_estimators_qrf
+        self.min_samples_split = min_samples_split
+        self.min_samples_leaf = min_samples_leaf
+        self.criterion = criterion
+        self.max_depth_qrf = max_depth_qrf
+        self.random_state = random_state
+
+        self.xgb_params = {
+            "n_estimators": n_estimators,
+            "max_depth": max_depth,
+            "learning_rate": learning_rate,
+            "subsample": subsample,
+        }
+
+        self.qrf_params = {
+            "n_estimators": n_estimators_qrf,
+            "min_samples_split": min_samples_split,
+            "min_samples_leaf": min_samples_leaf,
+            "criterion": criterion,
+            "max_depth": max_depth_qrf,
+        }
+
+        self.model = XGBQRF_SimpleModel(
+            quantiles=quantiles,
+            xgb_params=self.xgb_params,
+            qrf_params=self.qrf_params,
+            random_state=random_state,
+        )
+
+    def fit(self, X, y):
+        self.model.fit(X, y)
+        return self
+
+    def predict(self, X):
+        return self.model.predict(X)
