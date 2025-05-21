@@ -680,7 +680,9 @@ def create_impact_by_category_plot(results_df, category, color_map,
             label = label_format(value)
         else:
             label = f'{category.title()}: {value}'
-           
+        
+        print("Label utilisé pour écolo : ", ecological_impact)
+        print("Label utilisé pour écon : ", economic_impact)
         # Plot group
         ax.scatter(
             group[ecological_impact],
