@@ -79,3 +79,14 @@ def custom_nll_scorer(y_true, y_pred):
     total_loss = nll + 2 * (0.9 - coverage) ** 2 + 0.1 * interval_size
 
     return total_loss
+
+
+def get_y_train(df, number_of_weeks=4):
+    y_train = {}
+    df_copy = df.copy()
+    if "water_flow_week1" not in df_copy.columns:
+        raise ValueError("water_flow_week1 not in columns")
+    for i in range(0, number_of_weeks):
+        y_train[i] = df[f"water_flow_week{i+1}"]
+        df_copy.drop(columns=[f"water_flow_week{i+1}"], inplace=True)
+    return df_copy, y_train
