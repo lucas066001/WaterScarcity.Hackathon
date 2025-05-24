@@ -628,15 +628,16 @@ class XGBQRFModel:
             [model.predict(X) for model in self.models["XGB"].values()], axis=1
         )
 
-        qrf_predictions = self.models["QRF"].predict(X, quantiles=self.quantiles)
+        qrf_predictions = self.models["QRF"].predict(
+            X, quantiles=self.quantiles, aggregate_leaves_first=False
+        )
 
         lower_gap = qrf_predictions[:, 1] - qrf_predictions[:, 0]
         lower = xgb_predictions[:, 1] - lower_gap
         lower = lower.clip(min=0)
 
         upper_gap_qrf = qrf_predictions[:, 2] - qrf_predictions[:, 1]
-        upper_gap_xgb = xgb_predictions[:, 2] - xgb_predictions[:, 1]
-        upper = xgb_predictions[:, 1] + ((upper_gap_qrf + upper_gap_xgb) / 2)
+        upper = xgb_predictions[:, 1] + upper_gap_qrf
         return np.stack(
             [lower, xgb_predictions[:, 1], upper],
             axis=1,
