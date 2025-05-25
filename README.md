@@ -4,49 +4,10 @@ Group participation for the 2025 hackathon organized by Capgemini.
 
 ---
 
-## Motivations
-
-- Improve overall knowledge on data science and AI
-- Experiment with concrete data
-- Get out of confort zone and manipulate unusual data
-
----
-
 ## Contributors 👥
 
 - **[lucas066001]**
 - **[Az-r-ow]**
-
-# Hackathon on Water Scarcity 2025 - Baseline Model Repository
-
-This repository provides a simple toolkit to train baseline models and generate submission files for the [Hackathon on Water Scarcity 2025](https://www.codabench.org/competitions/4335). The baseline models predict water discharge for the 52 stations of eval dataset. You are free to experiment with different modeling approaches or use distinct models per station, as long as your submission file adheres to the required format (see Codabench guidelines).
-
-## Data
-
-- **Download:**  
-  Obtain the dataset from [Zenodo](https://zenodo.org/records/14826458).
-- **Setup:**  
-  Unzip the dataset and place it in the root directory of the repository.
-
-## Notebook Structure
-
-0. **Preprocessing**
-
-   - _01 - Data Preprocessing_
-   - _02 - Feature Engineering_
-
-1. **Training and Submission**
-
-   - _03 - Modelisation_
-   - _01 - Prediction Computation_
-
-2. **Exploration**
-   - _01 - Performance Comparison_
-   - _02 - Single Model Optimisation_
-
-## Submission
-
-After running the notebooks, create your submission file (`data/evaluation/predictions.zip`) and upload it to [Codabench](https://www.codabench.org/competitions/4335).
 
 ## Setup Local Environment
 
@@ -67,7 +28,42 @@ pip install --upgrade pip
 
 # Install required packages
 pip install -r requirements.txt
-
-# Add the current directory to PYTHONPATH
-export PYTHONPATH="$PYTHONPATH:$PWD"
 ```
+
+## Results Reproduction
+
+To reproduce the results that we got for the project, your entrypoint should be the `src/notebooks/Summary` folder where you will find everything you need to reproduce the results.
+
+> For the notebooks to run correctly, you need the `dataset` folder in the root of the repository.
+
+- `01.1 - Custom Preprocessing.ipynb`: This notebook contains the _baseline_ + custom preprocessing steps that we applied to the dataset.
+- `01.2 - Baseline Preprocessing.ipynb`: This notebook contains the baseline preprocessing steps (as originally provided).
+- `02.1 - Custom Feature Engineering.ipynb`: This notebook contains the custom feature engineering steps that we applied to the dataset.
+- `02.2 - Baseline Feature Engineering.ipynb`: This notebook contains the baseline feature engineering steps (as originally provided).
+- `03 - Model Training.ipynb`: Training of the QRF and XGBQRF model and saving them for predictions.
+- `04 - Prediction Computation.ipynb`: Predictions using the `XGBQRF` models and saving the results in `data/evaluation/custom/xgb_qrf`.
+- `05 - Dataset Comparison.ipynb` : Comparison of the custom dataset with the baseline dataset and tracking carbon emissions.
+
+### Steps to get XGBQRF evaluation results
+
+> Run the notebooks from top to bottom using "Run All Cells"
+
+**Notebooks to run:**
+
+- `01.1 - Custom Preprocessing.ipynb`
+- `02.1 - Custom Feature Engineering.ipynb`
+- `03 - Model Training.ipynb`
+- `04 - Prediction Computation.ipynb`
+- `05 - Dataset Comparison.ipynb`
+
+Then you should be able to find the results in `data/evaluation/custom/xgb_qrf`.
+
+### Steps to get the dataset comparison results
+
+**Notebooks to run:**
+
+- `01.1 - Custom Preprocessing.ipynb`
+- `01.1 - Baseline Preprocessing.ipynb`
+- `02.1 - Custom Feature Engineering.ipynb`
+- `02.2 - Baseline Feature Engineering.ipynb`
+- `05 - Dataset Comparison.ipynb`
