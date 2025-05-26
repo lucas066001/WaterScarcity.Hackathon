@@ -1,17 +1,12 @@
-23, 34, 12, 35,  3
-3 ,  2,  8,  7,  6
-0 ,  1,  0,  1,  0
+v1.1 -> linear gap between actors
+        priority_factor[priority_factor == 2] = params["PF"]
+        priority_factor[priority_factor == 1] = params["PF"] - params["PG"]
+        priority_factor[priority_factor == 0] = params["PF"] - 2 * params["PG"]
 
-3,  4,   2,  5,  1
-4,  5,   1,  2,  3
-
-5,  1,   4,  2,  3
-5,  2,   3,  1,  4.
-
+v1.2 -> exponential gap between actors (leading to negative values for low prio actors)
+        priority_factor[priority_factor == 2] = params["PF"]
+        priority_factor[priority_factor == 1] = params["PF"] - 1.8 ** params["PG"]
+        priority_factor[priority_factor == 0] = params["PF"] - 2.5 ** params["PG"]
 
 
-Policy 1 → 5.0, 
-Policy 2 → 1.5, 
-Policy 3 → 2.5, 
-Policy 4 → 1.5, 
-Policy 5 → 3.5
+v1.3 -> exponential gap adjusted over 0 

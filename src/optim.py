@@ -3,104 +3,7 @@ from types import MethodType
 import random
 from copy import deepcopy
 import copy
-
-
-class CustomRandomSearch:
-    def __init__(
-        self,
-        simulation,
-        custom_incentive_policy,
-        custom_quota_policy,
-        incentive_policy_params: dict,
-        quota_policy_params: dict,
-        max_iterations: int,
-    ):
-        """
-        :param simulation: instance de la simulation à exécuter
-        :param custom_incentive_policy: fonction d'incitation personnalisée
-        :param custom_quota_policy: fonction de quota personnalisée
-        :param incentive_policy_params: dict des hyperparamètres à tester (ex: {"NEGATIVE_POLICY_STRENGTH": [...], "POSITIVE_POLICY_STRENGTH": [...]})
-        :param quota_policy_params: dict des hyperparamètres à tester (ex: {"ESTIMATION_FACTOR": [...], "NORMAL_GROWTH_FACTOR": [...]})
-        :param max_iterations: nombre maximum d'itérations à tester
-        """
-        self.simulation = simulation
-        self.custom_incentive_policy = custom_incentive_policy
-        self.custom_quota_policy = custom_quota_policy
-        self.incentive_policy_params = incentive_policy_params
-        self.quota_policy_params = quota_policy_params
-        self.max_iterations = max_iterations
-        self.execution_results = []
-        self._tested_combinations = set()
-
-    def _random_combination(self, policy_params):
-        keys = list(policy_params.keys())
-        while True:
-            combo = {k: float(random.choice(policy_params[k])) for k in keys}
-            combo_tuple = tuple(sorted(combo.items()))
-            if combo_tuple not in self._tested_combinations:
-                self._tested_combinations.add(combo_tuple)
-                return combo
-
-    def run(self):
-        for _ in range(self.max_iterations):
-            print(f"Iteration {_+1}/{self.max_iterations}")
-            # Obtenir une combinaison unique
-            incentive_params = self._random_combination(self.incentive_policy_params)
-            quota_params = self._random_combination(self.quota_policy_params)
-
-            def incentive_policy(sim, *args, **kwargs):
-                return self.custom_incentive_policy(
-                    sim, *args, **kwargs, **incentive_params
-                )
-
-            def quota_policy(sim, *args, **kwargs):
-                return self.custom_quota_policy(sim, *args, **kwargs, **quota_params)
-
-            # Lier les politiques
-            self.simulation.incentive_policy = MethodType(
-                incentive_policy, self.simulation
-            )
-            self.simulation.compute_actor_quota = MethodType(
-                quota_policy, self.simulation
-            )
-
-            self.simulation.run_simulation()
-            ecological_impact, economic_impact = (
-                self.simulation.get_final_scores_scaled()
-            )
-
-            # Enregistrement
-            self.execution_results.append(
-                {
-                    "incentive_params": incentive_params,
-                    "quota_params": quota_params,
-                    "ecological_impact": ecological_impact,
-                    "economic_impact": economic_impact,
-                    # "simulation": copy.deepcopy(self.simulation)
-                }
-            )
-
-    def get_best_result(self):
-        # Normalisation des impacts
-        eco_impacts = np.array([r["economic_impact"] for r in self.execution_results])
-        ecol_impacts = np.array(
-            [r["ecological_impact"] for r in self.execution_results]
-        )
-
-        # Normalisation [0, 1]
-        eco_norm = (eco_impacts - eco_impacts.min()) / (
-            eco_impacts.max() - eco_impacts.min()
-        )
-        ecol_norm = (ecol_impacts - ecol_impacts.min()) / (
-            ecol_impacts.max() - ecol_impacts.min()
-        )
-
-        # Score combiné (éco haut, écolo bas)
-        scores = eco_norm - ecol_norm
-
-        # Meilleur score
-        best_idx = np.argmax(scores)
-        return self.execution_results[best_idx]
+import pandas as pd
 
 
 class EvolutionnarySearch:
@@ -114,7 +17,6 @@ class EvolutionnarySearch:
         initial_mutation_spread=0.1,
         econ_weight=1,
         ecol_weight=1,
-        score_metric="eco",
     ):
         """
         Create an EvolutionnarySearch object to run a parameter exploration around policies.
@@ -141,7 +43,6 @@ class EvolutionnarySearch:
         self.econ_weight = econ_weight
         self.ecol_weight = ecol_weight
         self.execution_results = []
-        self.score_metric = score_metric
         self.make_quota_function = MethodType(self._default_make_quota_function, self)
         self.generate_individuals = MethodType(self._default_generate_individuals, self)
         self.make_incentive_function = MethodType(
@@ -172,7 +73,7 @@ class EvolutionnarySearch:
 
         return ind
 
-    def select(self, population, scores):
+    def select(self, population, scores, nb_best):
         """
         Select half of the best individuals from the population based on their scores.
 
@@ -180,9 +81,14 @@ class EvolutionnarySearch:
             tab of inidividus.
         """
 
-        return [ind for _, ind in sorted(zip(scores, population), key=lambda x: -x[0])][
-            : self.pop_size // self.p_best_parents
-        ]
+        top_n_indexes = (
+            scores[scores["sat_ok"] == True]
+            .sort_values(by="score")
+            .head(nb_best)
+            .index.tolist()
+        )
+
+        return [population[i] for i in top_n_indexes]
 
     def _default_make_quota_function(self, params):
         raise ValueError(
@@ -223,17 +129,20 @@ class EvolutionnarySearch:
             ok_satisfaction,
         ) = simulation.get_final_scores_scaled_alt()
 
-        if self.score_metric == "priority_order":
-            adjusted_score = (high_sat - med_sat) + (med_sat - low_sat)
-        else:
-            # If satisfaction ok we keep the score intact so it gets an advantage
-            adjusted_score = (
-                self.econ_weight * economic_impact
-                - self.ecol_weight * ecological_impact
-            )
+        adjusted_score = (
+            self.econ_weight * economic_impact - self.ecol_weight * ecological_impact
+        )
 
-            if not ok_satisfaction:
-                adjusted_score -= 100
+        # To avoid negative value propagation
+        if (
+            high_sat < 0
+            or med_sat < 0
+            or low_sat < 0
+            or economic_impact < -0.5
+            or ecological_impact > 1
+        ):
+            ok_satisfaction = 0.0
+
         print("----------------")
         print("ecological_impact", ecological_impact)
         print("economic_impact", economic_impact)
@@ -241,6 +150,7 @@ class EvolutionnarySearch:
         print("med_sat", med_sat)
         print("low_sat", low_sat)
         print("adjusted_score", adjusted_score)
+        print("ok_satisfaction", ok_satisfaction)
         print("----------------")
         return (
             adjusted_score,
@@ -253,11 +163,17 @@ class EvolutionnarySearch:
         )
 
     def get_best_result(self):
-        adjusted_score = np.array([r["adjusted_score"] for r in self.execution_results])
+        filtered = [r for r in self.execution_results if r["ok_satisfaction"] == 1.0]
 
-        # Meilleur score
-        best_idx = np.argmax(adjusted_score)
-        return self.execution_results[best_idx]
+        # Trouver celui avec le meilleur (max) adjusted_score
+        if len(filtered) > 0:
+            best_ind = max(filtered, key=lambda r: r["adjusted_score"])
+            return best_ind
+        else:
+            # Si personne ne respecte le critère on renvoit le moins pire
+            filtered = [r for r in self.execution_results]
+            best_ind = max(filtered, key=lambda r: r["adjusted_score"])
+            return best_ind
 
     def run_search(self):
         """
@@ -276,7 +192,8 @@ class EvolutionnarySearch:
         population = [self.generate_individuals() for _ in range(self.pop_size)]
 
         for gen in range(self.n_gen):
-            scored = [-999]
+            scored = pd.DataFrame(columns=["score", "sat_ok"])
+
             # Pour tous les individus d'une génération, on évalue le score
             it = 0
             for ind in population:
@@ -294,6 +211,7 @@ class EvolutionnarySearch:
                     low_sat,
                 ) = self.score_fn(incentive_policy, quota_policy, self.simulation)
 
+                scored.loc[len(scored)] = [adjusted_score, ok_satisfaction]
                 self.execution_results.append(
                     {
                         "generation": gen,
@@ -307,24 +225,51 @@ class EvolutionnarySearch:
                         "low_sat": low_sat,
                         "simulation": (
                             copy.deepcopy(self.simulation)
-                            if adjusted_score >= max(scored)
+                            if adjusted_score >= max(scored["score"])
                             else None
                         ),
                     }
                 )
-                scored.append(adjusted_score)
 
-            best_score = max(scored)
-            print(f"Génération {gen}, meilleur score : {best_score:.4f}")
+            best_score = scored[scored["sat_ok"] == True].sort_values(
+                by="score", ascending=False
+            )
+            if len(best_score) > 0:
+                print(
+                    f"Génération {gen}, meilleur score : {best_score.iloc[0]["score"]}, respect {best_score.iloc[0]["sat_ok"]}"
+                )
+            else:
+                print(
+                    "Cette génération n'a produit aucun individu viable, tous les individus meurent et d'autres seront générés aléatoirement"
+                )
 
-            # Reproduction, on prend la moitié des meilleurs et on les mutent
+            # Reproduction, on prend les meilleurs et on les mutent
             if self.n_gen > 1:
-                selected = self.select(population, scored)
+
+                nb_best_parent_to_keep = self.pop_size // self.p_best_parents
+
+                selected = self.select(population, scored, nb_best_parent_to_keep)
+                # S'il n'y a pas assez de bon éléments dans la génération, on ne reproduit que ceux qui respectent la priorité
+                # D'autres nouveaux sont créés à la place
+                missing_parent = nb_best_parent_to_keep - len(selected)
+
                 children = []
-                while len(children) < self.pop_size:
-                    parent = random.choice(selected)
-                    child = self.mutate(parent, gen)
-                    children.append(child)
+
+                if missing_parent != nb_best_parent_to_keep:
+                    if missing_parent > 0:
+                        print("We add only missing parents")
+                        for i in range(missing_parent):
+                            selected.append(self.generate_individuals())
+
+                    while len(children) < self.pop_size:
+                        parent = random.choice(selected)
+                        child = self.mutate(parent, gen)
+                        children.append(child)
+                else:
+                    print("nobody is kept from this generation")
+                    print("We resample all population")
+                    for i in range(self.pop_size):
+                        children.append(self.generate_individuals())
 
             population = children
 
