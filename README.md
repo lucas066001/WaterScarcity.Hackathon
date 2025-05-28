@@ -30,6 +30,7 @@ The repository is structured to enable full reproducibility of results, from raw
 ---
 
 ## Project Structure
+```plaintext
 . ├── phase_one_waterflow_prediction_machine_learning/ 
   │ ├── data/ # Input, evaluation, and intermediate data 
   │ ├── dataset/ # Raw datasets (Brazil, France) 
@@ -45,7 +46,7 @@ The repository is structured to enable full reproducibility of results, from raw
   │ ├── c.multi_scenarios_final.ipynb 
   │ └── README.md 
   └── README.md # (You are here) 
-
+```
   
 ---
 
