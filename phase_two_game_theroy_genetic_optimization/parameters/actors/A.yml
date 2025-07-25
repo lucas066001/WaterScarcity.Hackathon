@@ -1,0 +1,16 @@
+parameters:
+  type: Agriculture
+  name: Agriculture
+  demands: 10
+  storage_capa: 2
+  initial_storage: 2
+  forecast_bias: 0.0
+  forecast_uncertainty: 0.0
+  ict: .5
+  lr_factor: 0.005
+  values: 1.0
+  ecol_impact: 1.0
+  priority: 1
+  reput_cost: 0.0
+  baseline_income_factor: 1.0
+  

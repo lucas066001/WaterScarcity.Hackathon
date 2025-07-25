@@ -1,0 +1,8 @@
+feature,target,correlation
+water_flow_lag_4w,water_flow_week4,-0.09164902905007472
+water_flow_ma_4w_lag_1w,water_flow_week4,-0.06984696663474226
+water_flow_ma_4w_lag_1w_gauss,water_flow_week4,-0.0647494560910582
+water_flow_lag_1w,water_flow_week4,-0.06411188850458366
+water_flow_ma_2w_lag_1w_gauss,water_flow_week4,-0.0466158496926952
+water_flow_ma_2w_lag_1w,water_flow_week4,-0.0466158496926952
+water_flow_lag_3w,water_flow_week4,0.04127606168834726

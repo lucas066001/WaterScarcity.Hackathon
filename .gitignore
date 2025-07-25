@@ -2,6 +2,7 @@
 data/
 search-results/
 
+
 # Ignore the dataset folder and all its subdirectories and files
 dataset/
 dataset_mini_challenge/
@@ -17,6 +18,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+.venv
 .Python
 build/
 develop-eggs/
