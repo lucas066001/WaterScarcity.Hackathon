@@ -145,10 +145,8 @@ class SnowIndexComputeTransformer(BaseEstimator, TransformerMixin):
                 f"DataFrame must contain the following columns: {required_columns}"
             )
 
-        # Make all temps positive to get relevant increasing output
-        min_temp = X_transformed[self.temp_col_name].min()
-        if min_temp <= 0:
-            X_transformed[self.temp_col_name] += abs(min_temp) + 1
+        # Convert temperature from Celsius to Kelvin
+        X_transformed["temperature_kelvin"] = X_transformed[self.temp_col_name] + 273.15
 
         # Compute index
         snow_index = (
@@ -159,7 +157,7 @@ class SnowIndexComputeTransformer(BaseEstimator, TransformerMixin):
                 X_transformed[self.rain_col_name] * self.precip_weight
             )  # More rain = more snow
             / (
-                X_transformed[self.temp_col_name] * self.temp_weight
+                X_transformed["temperature_kelvin"] * self.temp_weight
             )  # Lower temps = more snow
         )
 
@@ -173,6 +171,7 @@ class SnowIndexComputeTransformer(BaseEstimator, TransformerMixin):
         )
 
         X_transformed["snow_index"] = snow_index
+        X_transformed.drop(columns=["temperature_kelvin"], inplace=True)
 
         return X_transformed
 
