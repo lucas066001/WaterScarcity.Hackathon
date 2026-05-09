@@ -2,158 +2,351 @@
 
 ## Overview
 
-This repository contains the full codebase, data processing, modeling, and optimization workflows developed for the Capgemini 2025 Water Scarcity Hackathon. The project is organized in two main phases:
+This repository contains the codebase developed for the **Capgemini Invent 2025 Water Scarcity Hackathon**. The project is organized into two complementary phases:
 
-- **Phase One:** Machine learning-based prediction of river water flow using spatio-temporal data from Brazil and France.
-- **Phase Two:** Game theory and genetic optimization for water management policy design and simulation.
+- **Phase 1 — Streamflow forecasting:** probabilistic prediction of weekly river discharge using spatio-temporal, meteorological, hydrological, and geospatial data from France and Brazil.
+- **Phase 2 — Water-allocation policy design:** simulation and optimization of water-management policies using game-theoretic reasoning and evolutionary search.
 
-The repository is structured to enable full reproducibility of results, from raw data preprocessing to advanced model training, evaluation, and policy optimization.
+The repository supports reproducible execution of the main workflows, from data preprocessing and feature engineering to model training, evaluation, policy simulation, and optimization.
 
 ---
 
 ## Table of Contents
 
-- [Project Structure](#project-structure)
-- [Objectives](#objectives)
-- [Phase One: Water Flow Prediction](#phase-one-water-flow-prediction)
-  - [Data Preprocessing & Feature Engineering](#data-preprocessing--feature-engineering)
-  - [Model Training & Evaluation](#model-training--evaluation)
-  - [Reproducibility](#reproducibility)
-- [Phase Two: Game Theory & Optimization](#phase-two-game-theory--optimization)
-  - [Simulation Scenarios](#simulation-scenarios)
-  - [Policy Optimization](#policy-optimization)
-- [Setup & Installation](#setup--installation)
-- [Usage](#usage)
-- [Contributors](#contributors)
-- [License](#license)
+- [WaterScarcity.Hackathon](#waterscarcityhackathon)
+  - [Overview](#overview)
+  - [Table of Contents](#table-of-contents)
+  - [Project Structure](#project-structure)
+  - [Objectives](#objectives)
+    - [Phase 1: Streamflow Forecasting](#phase-1-streamflow-forecasting)
+    - [Phase 2: Water-Allocation Policy Design](#phase-2-water-allocation-policy-design)
+  - [Setup and Installation](#setup-and-installation)
+    - [Recommended Environment Strategy](#recommended-environment-strategy)
+    - [Phase 1 Environment](#phase-1-environment)
+    - [Phase 2 Environment](#phase-2-environment)
+  - [Usage](#usage)
+    - [Running Phase 1](#running-phase-1)
+    - [Running Phase 2](#running-phase-2)
+  - [Reproducibility Notes](#reproducibility-notes)
+  - [Data Availability](#data-availability)
+  - [Acknowledgements](#acknowledgements)
 
 ---
 
 ## Project Structure
-```plaintext
-. ├── phase_one_waterflow_prediction_machine_learning/ 
-  │ ├── data/ # Input, evaluation, and intermediate data 
-  │ ├── dataset/ # Raw datasets (Brazil, France) 
-  │ ├── dataset_mini_challenge/ 
-  │ ├── models/ # Saved models and results 
-  │ ├── src/ # Source code and notebooks 
-  │ ├── requirements.txt 
-  │ └── README.md 
-  ├── phase_two_game_theroy_genetic_optimization/ 
-  │ ├── src/ # Policy code and simulation logic 
-  │ ├── a..ipynb # Single scenario notebooks 
-  │ ├── b..ipynb # Multi-scenario notebooks 
-  │ ├── c.multi_scenarios_final.ipynb 
-  │ └── README.md 
-  └── README.md # (You are here) 
+
+```text
+.
+├── pyproject.toml
+├── README.md
+├── phase_one_waterflow_prediction_machine_learning/
+│   ├── data/
+│   │   ├── evaluation/
+│   │   └── ...
+│   ├── dataset/
+│   │   ├── Brazil/
+│   │   ├── France/
+│   │   └── ...
+│   ├── dataset_mini_challenge/
+│   ├── models/
+│   ├── src/
+│   │   ├── notebooks/
+│   │   └── ...
+│   ├── requirements.txt
+│   └── README.md
+└── phase_two_game_theroy_genetic_optimization/
+    ├── src/
+    │   ├── policies/
+    │   └── ...
+    ├── a*.ipynb
+    ├── b*.ipynb
+    ├── c.multi_scenarios_final.ipynb
+    ├── requirements.txt
+    └── README.md
 ```
-  
+
+> Note: the Phase 2 folder name preserves the original hackathon repository naming.
+
 ---
 
 ## Objectives
 
-### Phase One: Water Flow Prediction
+### Phase 1: Streamflow Forecasting
 
-- **Goal:** Develop robust machine learning models to predict river water flow at various stations in Brazil and France, leveraging spatio-temporal and environmental features.
-- **Approach:** 
-  - Data cleaning, preprocessing, and advanced feature engineering.
-  - Model selection and hyperparameter optimization (Random Forest, XGB-QRF, LightGBM, EBM, MAPIE, etc.).
-  - Rigorous cross-validation with spatial and temporal splits to ensure generalization.
-  - Quantile regression and uncertainty estimation for robust predictions.
+The goal of Phase 1 is to develop robust probabilistic models for weekly river-flow prediction across hydrometric stations in France and Brazil.
 
-### Phase Two: Game Theory & Optimization
+The forecasting workflow includes:
 
-- **Goal:** Design and optimize water management policies using game theory and evolutionary algorithms.
-- **Approach:**
-  - Simulate water allocation scenarios under various cooperation and competition strategies.
-  - Use genetic algorithms to optimize policy parameters for different objectives (e.g., fairness, efficiency).
-  - Provide ready-to-use policy functions for integration and evaluation.
+- data cleaning and preprocessing;
+- hydrology-guided feature engineering;
+- spatial and temporal validation splits;
+- model training and hyperparameter tuning;
+- probabilistic prediction with quantile-based uncertainty estimates;
+- evaluation of predictive accuracy and interval calibration.
 
----
+Main modeling components include:
 
-## Phase One: Water Flow Prediction
+- Quantile Random Forests;
+- XGBoost-based models;
+- XGB-QRF hybrid ensemble;
+- LightGBM;
+- Explainable Boosting Machines;
+- MAPIE-based uncertainty estimation;
+- SHAP-based feature-importance analysis.
 
-### Data Preprocessing & Feature Engineering
+Feature engineering includes:
 
-- Custom and baseline preprocessing pipelines.
-- Feature engineering includes PCA, clustering, snow index, cyclical encoding, and more.
-- All steps are documented in Jupyter notebooks under `src/notebooks`.
+- principal component analysis of correlated variables;
+- lagged streamflow features;
+- moving-average streamflow features;
+- cyclical temporal encodings;
+- snow-index construction;
+- spatial and hydrological clustering.
 
-### Model Training & Evaluation
+### Phase 2: Water-Allocation Policy Design
 
-- Multiple model types: Quantile Random Forest (QRF), XGB-QRF, LightGBM, Explainable Boosting Machine (EBM), MAPIE.
-- Hyperparameter optimization and model selection via cross-validation.
-- Model saving and reproducible evaluation workflows.
-- Emissions tracking for model training (CodeCarbon).
+The goal of Phase 2 is to design and optimize adaptive water-management policies in a multi-agent simulation environment.
 
-### Reproducibility
+The policy-design workflow includes:
 
-To reproduce results:
+- simulation of heterogeneous water users;
+- definition of priority-aware water quotas;
+- design of incentives through fines and subsidies;
+- testing of baseline, high-cooperation, and optimized scenarios;
+- evolutionary optimization of interpretable policy parameters;
+- robustness analysis under forecast bias and uncertainty.
 
-1. Ensure the `dataset` folder is present at the repository root.
-2. Follow the notebook execution order in `phase_one_waterflow_prediction_machine_learning/README.md` or start from `src/notebooks/Summary`.
-3. All intermediate and final results are saved in the `models/` and `data/evaluation/` directories.
+The final policy framework combines:
 
----
-
-## Phase Two: Game Theory & Optimization
-
-### Simulation Scenarios
-
-- **Single Scenario:** Custom, logistic, exponential, baseline, and high-cooperation policies.
-- **Multi-Scenario:** Generalization and robustness analysis across multiple simulated environments.
-
-### Policy Optimization
-
-- Evolutionary search for optimal policy parameters.
-- Ready-to-use policy functions in `src/policies/custom_final_policies.py`.
-- All notebooks include precomputed results for quick review.
+- quota-based allocation;
+- priority scaling;
+- crisis-level rules;
+- subsidy and penalty mechanisms;
+- evolutionary search over policy parameters.
 
 ---
 
-## Setup & Installation
+## Setup and Installation
 
-### Python Environment
+### Recommended Environment Strategy
 
-- Recommended Python version: **3.12+**
-- Each phase has its own `requirements.txt` file.
+Phase 1 and Phase 2 rely on different dependency stacks. To avoid dependency conflicts, we recommend using **separate virtual environments** for each phase.
 
-### Installation Steps
+The repository includes a root-level `pyproject.toml` with separate optional dependency groups:
 
-```sh
-# Clone the repository
-git clone https://github.com/<your-org>/WaterScarcity.Hackathon.git
-cd WaterScarcity.Hackathon
+- `phase1`
+- `phase2`
 
-# Phase One setup
-cd phase_one_waterflow_prediction_machine_learning
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+Use the corresponding group depending on which part of the project you want to run.
 
-# Phase Two setup
-cd ../phase_two_game_theroy_genetic_optimization
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+Recommended Python version:
+
+```text
+Python 3.10
+```
+
+Python 3.10 is recommended because it provides broad compatibility with the geospatial, machine-learning, and notebook dependencies used in the project.
+
+---
+
+### Phase 1 Environment
+
+From the repository root:
+
+```bash
+python3.10 -m venv .venv-phase1
+source .venv-phase1/bin/activate
+python -m pip install --upgrade pip
+pip install -e ".[phase1]"
+```
+
+On Windows PowerShell:
+
+```powershell
+py -3.10 -m venv .venv-phase1
+.venv-phase1\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e ".[phase1]"
+```
+
+To deactivate the environment:
+
+```bash
+deactivate
 ```
 
 ---
 
-### Usage
-##### Phase One
-All workflows are organized as Jupyter notebooks in src/notebooks.
-Start from src/notebooks/Summary for full pipeline execution.
-See phase_one_waterflow_prediction_machine_learning/README.md for detailed instructions.
-##### Phase Two
-Notebooks prefixed with a. are for single scenario analysis.
-Notebooks prefixed with b. are for multi-scenario analysis.
-c.multi_scenarios_final.ipynb provides the final multi-scenario results.
-See phase_two_game_theroy_genetic_optimization/README.md for scenario and policy details.
+### Phase 2 Environment
 
+From the repository root:
 
-### Acknowledgements
-- Capgemini Water Scarcity Hackathon 2025
-- All open-source contributors and libraries used in this project
+```bash
+python3.10 -m venv .venv-phase2
+source .venv-phase2/bin/activate
+python -m pip install --upgrade pip
+pip install -e ".[phase2]"
+```
+
+On Windows PowerShell:
+
+```powershell
+py -3.10 -m venv .venv-phase2
+.venv-phase2\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e ".[phase2]"
+```
+
+To deactivate the environment:
+
+```bash
+deactivate
+```
+
+---
+
+## Usage
+
+### Running Phase 1
+
+Phase 1 workflows are located in:
+
+```text
+phase_one_waterflow_prediction_machine_learning/
+```
+
+The main notebooks are located under:
+
+```text
+phase_one_waterflow_prediction_machine_learning/src/notebooks/
+```
+
+Recommended workflow:
+
+1. Create and activate the Phase 1 environment.
+2. Ensure the required dataset folders are available.
+3. Open the notebooks in `src/notebooks/`.
+4. Start from the summary or pipeline notebook described in the Phase 1 README.
+5. Run preprocessing, feature engineering, model training, and evaluation notebooks in order.
+
+Useful locations:
+
+```text
+phase_one_waterflow_prediction_machine_learning/data/
+phase_one_waterflow_prediction_machine_learning/models/
+phase_one_waterflow_prediction_machine_learning/src/notebooks/
+```
+
+For detailed execution order, see:
+
+```text
+phase_one_waterflow_prediction_machine_learning/README.md
+```
+
+---
+
+### Running Phase 2
+
+Phase 2 workflows are located in:
+
+```text
+phase_two_game_theroy_genetic_optimization/
+```
+
+The main notebooks are organized by scenario type:
+
+```text
+a*.ipynb                         # Single-scenario analyses
+b*.ipynb                         # Multi-scenario analyses
+c.multi_scenarios_final.ipynb    # Final multi-scenario results
+```
+
+Recommended workflow:
+
+1. Create and activate the Phase 2 environment.
+2. Open the Phase 2 notebooks.
+3. Start with the single-scenario notebooks prefixed with `a`.
+4. Continue with the multi-scenario notebooks prefixed with `b`.
+5. Use `c.multi_scenarios_final.ipynb` for the final multi-scenario evaluation.
+
+Policy functions are located in:
+
+```text
+phase_two_game_theroy_genetic_optimization/src/policies/
+```
+
+The final custom policy implementation is located in:
+
+```text
+phase_two_game_theroy_genetic_optimization/src/policies/custom_final_policies.py
+```
+
+For detailed scenario and policy descriptions, see:
+
+```text
+phase_two_game_theroy_genetic_optimization/README.md
+```
+
+---
+
+## Reproducibility Notes
+
+This repository separates the environments for Phase 1 and Phase 2 because the two workflows use different versions of several scientific Python packages.
+
+For example, the two phases use different dependency versions for packages such as:
+
+```text
+scikit-learn
+scipy
+plotly
+Pygments
+```
+
+Installing both phases in the same environment is therefore not recommended unless the combined environment has been explicitly tested.
+
+Recommended reproducibility practice:
+
+```text
+Use .venv-phase1 for Phase 1.
+Use .venv-phase2 for Phase 2.
+Do not mix both environments unless necessary.
+```
+
+The repository includes:
+
+- a root-level `pyproject.toml`;
+- phase-specific optional dependency groups;
+- phase-specific code and notebooks;
+- precomputed outputs where applicable;
+- phase-specific README files with additional details.
+
+---
+
+## Data Availability
+
+The data used in this project were provided by the organizers of the Capgemini Invent 2025 Water Scarcity Hackathon.
+
+The repository is structured to work with the original dataset layout used during the hackathon. Some raw data files may not be redistributed directly in this repository depending on the licensing terms of the original dataset.
+
+Expected Phase 1 data locations include:
+
+```text
+phase_one_waterflow_prediction_machine_learning/dataset/
+phase_one_waterflow_prediction_machine_learning/dataset_mini_challenge/
+phase_one_waterflow_prediction_machine_learning/data/
+```
+
+Generated outputs are saved under:
+
+```text
+phase_one_waterflow_prediction_machine_learning/models/
+phase_one_waterflow_prediction_machine_learning/data/evaluation/
+```
+
+---
+
+## Acknowledgements
+
+We thank the organizers of the **Capgemini Invent 2025 Water Scarcity Hackathon** for providing the challenge framework, datasets, and evaluation platform.
+
+We also acknowledge the open-source Python ecosystem and the contributors of the scientific, geospatial, machine-learning, visualization, and notebook libraries used in this project.
